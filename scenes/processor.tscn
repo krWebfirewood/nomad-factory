@@ -1,0 +1,25 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/processor.gd" id="1_proc"]
+[ext_resource type="Texture2D" path="res://assets/processor.svg" id="2_tex"]
+
+[node name="Processor" type="Node2D"]
+script = ExtResource("1_proc")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+
+[node name="ProgressBar" type="ProgressBar" parent="."]
+offset_left = -30.0
+offset_top = -24.0
+offset_right = 30.0
+offset_bottom = -14.0
+max_value = 1.0
+show_percentage = false
+
+[node name="ItemRect" type="ColorRect" parent="."]
+offset_left = -8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = 8.0
+color = Color(0, 1, 1, 1)

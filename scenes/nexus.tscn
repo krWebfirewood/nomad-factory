@@ -1,0 +1,28 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/nexus.gd" id="1_nexus"]
+[ext_resource type="Texture2D" path="res://assets/nexus.svg" id="2_tex"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_nex"]
+size = Vector2(128, 128)
+
+[node name="Nexus" type="StaticBody2D" groups=["nexus"]]
+script = ExtResource("1_nexus")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+scale = Vector2(2, 2)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_nex")
+
+[node name="HPLabel" type="Label" parent="."]
+offset_left = -60.0
+offset_top = -80.0
+offset_right = 60.0
+offset_bottom = -50.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 20
+text = "HP: 50"
+horizontal_alignment = 1

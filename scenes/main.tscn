@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://dr5i0qacnjwi3"]
+
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player_scn"]
+[ext_resource type="Script" uid="uid://dalpcemtrj7hn" path="res://scripts/main.gd" id="1_tbgi4"]
+[ext_resource type="Texture2D" uid="uid://olfl2wkividp" path="res://tileset.svg" id="2_tileset"]
+[ext_resource type="PackedScene" path="res://scenes/resource_node.tscn" id="3_tree"]
+[ext_resource type="PackedScene" path="res://scenes/rock_node.tscn" id="4_rock"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_0"]
+texture = ExtResource("2_tileset")
+texture_region_size = Vector2i(64, 64)
+0:0/0 = 0
+1:0/0 = 0
+
+[sub_resource type="TileSet" id="TileSet_main"]
+tile_size = Vector2i(64, 64)
+sources/0 = SubResource("TileSetAtlasSource_0")
+
+[node name="Main" type="Node2D" unique_id=389019470]
+script = ExtResource("1_tbgi4")
+
+[node name="TileMap" type="TileMap" parent="." unique_id=1815680850]
+tile_set = SubResource("TileSet_main")
+format = 2
+[node name="Player" parent="." unique_id=1765202290 instance=ExtResource("1_player_scn")]
+position = Vector2(0, 0)
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=742423412]
