@@ -51,6 +51,22 @@ var upg_buttons = []
 var boss_hp_panel = null
 var boss_hp_label = null
 
+var shake_intensity = 0.0
+var build_menu_panel = null
+var upgrade_card_panel = null
+var active_build_label = null
+
+# --- 컨텍스트 UI ---
+var building_context_panel = null
+var context_title_label = null
+var btn_upgrade = null
+var btn_move = null
+var btn_demolish = null
+var filter_option = null
+var selected_building = null
+var moving_building = null
+var moving_grid_pos = Vector2i()
+
 func _ready():
 	GameManager.player = self
 	
@@ -83,12 +99,14 @@ func _ready():
 	
 	build_preview = Node2D.new()
 	preview_rect = ColorRect.new()
+	preview_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	preview_rect.size = Vector2(64, 64)
 	preview_rect.position = Vector2(-32, -32)
 	preview_rect.color = Color(1, 1, 1, 0.5)
 	build_preview.add_child(preview_rect)
 	
 	preview_arrow = ColorRect.new()
+	preview_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	preview_arrow.size = Vector2(20, 10)
 	preview_arrow.position = Vector2(12, -5)
 	preview_arrow.color = Color(1, 1, 1, 0.9)
@@ -189,39 +207,76 @@ func _setup_ui():
 	btn_down.pressed.connect(func(): change_floor(current_floor - 1))
 	floor_panel.add_child(btn_down)
 	
-	# 하단 중앙 핫바(Hotbar)
-	var hotbar_bg = ColorRect.new()
-	hotbar_bg.color = Color(0.1, 0.1, 0.1, 0.8)
-	hotbar_bg.size = Vector2(430, 60)
+	# 하단 중앙 건설 메뉴 토글 버튼
+	var btn_build_menu = Button.new()
+	btn_build_menu.text = "건설 메뉴 [B]"
+	btn_build_menu.size = Vector2(150, 50)
+	btn_build_menu.position = Vector2(vp_size.x / 2.0 - 75, vp_size.y - 60)
+	btn_build_menu.pressed.connect(func(): toggle_build_menu())
+	ui_canvas.add_child(btn_build_menu)
 	
-	hotbar_bg.position = Vector2(vp_size.x / 2.0 - 215, vp_size.y - 80)
-	ui_canvas.add_child(hotbar_bg)
+	# 현재 선택된 건물 표시 레이블
+	active_build_label = Label.new()
+	active_build_label.text = "현재 선택: 없음"
+	active_build_label.position = Vector2(vp_size.x / 2.0 - 100, vp_size.y - 90)
+	active_build_label.size = Vector2(200, 30)
+	active_build_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ui_canvas.add_child(active_build_label)
+	
+	# 건설 메뉴 패널
+	build_menu_panel = ColorRect.new()
+	build_menu_panel.color = Color(0.1, 0.1, 0.15, 0.95)
+	build_menu_panel.size = Vector2(400, 300)
+	build_menu_panel.position = Vector2(vp_size.x / 2.0 - 200, vp_size.y / 2.0 - 150)
+	build_menu_panel.visible = false
+	ui_canvas.add_child(build_menu_panel)
+	
+	var build_title = Label.new()
+	build_title.text = "건설 항목 선택 (우클릭: 철거)"
+	build_title.position = Vector2(0, 10)
+	build_title.size = Vector2(400, 30)
+	build_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build_menu_panel.add_child(build_title)
+	
+	var grid = GridContainer.new()
+	grid.columns = 3
+	grid.position = Vector2(20, 50)
+	grid.size = Vector2(360, 240)
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	build_menu_panel.add_child(grid)
 	
 	var colors = [Color(0.0, 0.3, 0.8), Color(0.8, 0.0, 0.0), Color(0.8, 0.8, 0.0), Color(1.0, 0.0, 1.0), Color(0.4, 0.4, 0.5), Color(0.0, 0.6, 0.8), Color(0.3, 0.2, 0.1), Color(0.2, 0.8, 0.2), Color(0.8, 0.5, 0.2), Color(0.5, 0.5, 0.5)]
-	var names = ["1:기관총", "2:스나이퍼", "3:샷건", "4:레이저", "5:방벽", "6:수리소", "7:드릴", "8:공급기", "9:벨트", "0:가공소"]
+	var names = [
+		"1:기관총\n(나무5,돌5)", 
+		"2:스나이퍼\n(돌15)", 
+		"3:샷건\n(나무15)", 
+		"4:레이저\n(강철10,코어5)", 
+		"5:방벽\n(돌10)", 
+		"6:수리소\n(나무20,돌10)", 
+		"7:드릴\n(돌20,코어10)", 
+		"8:공급기\n(나무5,돌5)", 
+		"9:벨트\n(나무2)", 
+		"0:가공소\n(돌15,코어2)",
+		"-:미사일\n(강철5,코어10)"
+	]
+	var type_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 	
-	for i in range(10):
-		var slot = ColorRect.new()
-		slot.size = Vector2(60, 50)
-		slot.position = Vector2(10 + i * 65, 5) # 간격 65로 줄여서 10개 배치
-		slot.color = colors[i]
-		hotbar_bg.add_child(slot)
+	for i in range(11):
+		var btn = Button.new()
+		btn.text = names[i]
+		btn.custom_minimum_size = Vector2(110, 60)
+		# 람다 캡처 문제 해결을 위해 bind 사용
+		btn.pressed.connect(select_build_type.bind(type_ids[i], names[i]))
+		grid.add_child(btn)
 		
-		var outline = ReferenceRect.new()
-		outline.editor_only = false
-		outline.border_color = Color(1, 1, 1, 0)
-		outline.border_width = 3.0
-		outline.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		slot.add_child(outline)
-		
-		var label = Label.new()
-		label.text = names[i]
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		slot.add_child(label)
-		
-		hotbar_slots.append(outline)
+	# 로그라이트 업그레이드 선택 패널
+	upgrade_card_panel = ColorRect.new()
+	upgrade_card_panel.color = Color(0, 0, 0, 0.85)
+	upgrade_card_panel.size = get_viewport_rect().size
+	upgrade_card_panel.visible = false
+	upgrade_card_panel.process_mode = Node.PROCESS_MODE_ALWAYS # 일시정지 중에도 동작
+	ui_canvas.add_child(upgrade_card_panel)
 		
 	# 업그레이드 패널 (기본 숨김)
 	upgrade_panel = ColorRect.new()
@@ -230,6 +285,50 @@ func _setup_ui():
 	upgrade_panel.position = Vector2(vp_size.x/2 - 250, vp_size.y/2 - 200)
 	upgrade_panel.visible = false
 	ui_canvas.add_child(upgrade_panel)
+	
+	# --- 건물 컨텍스트 UI ---
+	building_context_panel = ColorRect.new()
+	building_context_panel.color = Color(0.1, 0.1, 0.15, 0.95)
+	building_context_panel.size = Vector2(200, 230)
+	building_context_panel.visible = false
+	ui_canvas.add_child(building_context_panel)
+	
+	context_title_label = Label.new()
+	context_title_label.position = Vector2(10, 10)
+	context_title_label.text = "건물 이름 (Lv.1)"
+	building_context_panel.add_child(context_title_label)
+	
+	btn_upgrade = Button.new()
+	btn_upgrade.text = "업그레이드"
+	btn_upgrade.position = Vector2(10, 40)
+	btn_upgrade.size = Vector2(180, 40)
+	btn_upgrade.pressed.connect(_on_btn_upgrade)
+	building_context_panel.add_child(btn_upgrade)
+	
+	btn_move = Button.new()
+	btn_move.text = "이동"
+	btn_move.position = Vector2(10, 90)
+	btn_move.size = Vector2(180, 40)
+	btn_move.pressed.connect(_on_btn_move)
+	building_context_panel.add_child(btn_move)
+	
+	btn_demolish = Button.new()
+	btn_demolish.text = "철거 (자원 50% 반환)"
+	btn_demolish.position = Vector2(10, 140)
+	btn_demolish.size = Vector2(180, 40)
+	btn_demolish.pressed.connect(_on_btn_demolish)
+	building_context_panel.add_child(btn_demolish)
+	
+	filter_option = OptionButton.new()
+	filter_option.position = Vector2(10, 190)
+	filter_option.size = Vector2(180, 30)
+	filter_option.add_item("자동", 0)
+	filter_option.add_item("철광석", 1)
+	filter_option.add_item("돌", 2)
+	filter_option.add_item("나무", 3)
+	filter_option.add_item("정지", 4)
+	filter_option.item_selected.connect(_on_filter_selected)
+	building_context_panel.add_child(filter_option)
 	
 	var upg_title = Label.new()
 	upg_title.text = "=== TECH TREE (단축키 U) ==="
@@ -362,7 +461,20 @@ func game_over():
 		status_label.text = "GAME OVER!\n이동 요새가 파괴되었습니다."
 		status_label.modulate = Color(1, 0, 0)
 
+func _process(delta):
+	# 카메라 쉐이크 처리
+	if has_node("Camera2D"):
+		if shake_intensity > 0:
+			$Camera2D.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake_intensity
+			shake_intensity = lerp(shake_intensity, 0.0, 10.0 * delta)
+			if shake_intensity < 0.1:
+				shake_intensity = 0
+				$Camera2D.offset = Vector2.ZERO
+
 func _physics_process(delta):
+	_process_movement(delta)
+
+func _process_movement(delta):
 	# 부스터 로직
 	if boost_timer > 0:
 		boost_timer -= delta
@@ -430,18 +542,33 @@ func auto_attack():
 		get_parent().add_child(proj)
 
 func _unhandled_input(event):
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if build_type == 0 and moving_building == null:
+			var target = get_hovered_fortress()
+			if target != null:
+				var mouse_world_pos = get_canvas_transform().affine_inverse() * event.position
+				var target_local_pos = target.to_local(mouse_world_pos)
+				var grid_pos = FactoryManager.get_local_grid_pos(target_local_pos)
+				if floor_grids[current_floor].has(grid_pos):
+					open_context_ui(floor_grids[current_floor][grid_pos])
+				else:
+					if is_instance_valid(building_context_panel): building_context_panel.visible = false
+			else:
+				if is_instance_valid(building_context_panel): building_context_panel.visible = false
+
 	if event is InputEventKey and event.pressed:
-		if event.keycode == KEY_1: set_build_type(1)
-		elif event.keycode == KEY_2: set_build_type(2)
-		elif event.keycode == KEY_3: set_build_type(3)
-		elif event.keycode == KEY_4: set_build_type(4)
-		elif event.keycode == KEY_5: set_build_type(5)
-		elif event.keycode == KEY_6: set_build_type(6)
-		elif event.keycode == KEY_7: set_build_type(7)
-		elif event.keycode == KEY_8: set_build_type(8)
-		elif event.keycode == KEY_9: set_build_type(9)
-		elif event.keycode == KEY_0: set_build_type(10)
-		elif event.keycode == KEY_ESCAPE: set_build_type(0)
+		if event.keycode == KEY_1: select_build_type(1, "1:기관총")
+		elif event.keycode == KEY_2: select_build_type(2, "2:스나이퍼")
+		elif event.keycode == KEY_3: select_build_type(3, "3:샷건")
+		elif event.keycode == KEY_4: select_build_type(4, "4:레이저")
+		elif event.keycode == KEY_5: select_build_type(5, "5:방벽")
+		elif event.keycode == KEY_6: select_build_type(6, "6:수리소")
+		elif event.keycode == KEY_7: select_build_type(7, "7:드릴")
+		elif event.keycode == KEY_8: select_build_type(8, "8:공급기")
+		elif event.keycode == KEY_9: select_build_type(9, "9:벨트")
+		elif event.keycode == KEY_0: select_build_type(10, "0:가공소")
+		elif event.keycode == KEY_MINUS: select_build_type(11, "-:미사일(폭발형)")
+		elif event.keycode == KEY_ESCAPE: select_build_type(0, "현재 선택: 없음")
 		elif event.keycode == KEY_U:
 			upgrade_panel.visible = not upgrade_panel.visible
 		elif event.keycode == KEY_R:
@@ -458,7 +585,18 @@ func _unhandled_input(event):
 		elif event.keycode == KEY_SPACE:
 			interact_with_resource()
 		elif event.keycode == KEY_B:
-			build_furnace()
+			toggle_build_menu()
+
+func toggle_build_menu():
+	if is_instance_valid(build_menu_panel):
+		build_menu_panel.visible = not build_menu_panel.visible
+
+func select_build_type(type: int, name: String):
+	set_build_type(type)
+	if is_instance_valid(active_build_label):
+		active_build_label.text = "현재 선택: " + name
+	if is_instance_valid(build_menu_panel):
+		build_menu_panel.visible = false
 
 func set_build_type(type):
 	build_type = type
@@ -476,6 +614,7 @@ func set_build_type(type):
 		elif build_type == 8: preview_rect.color = Color(0.2, 0.8, 0.2, 0.5) # 공급기
 		elif build_type == 9: preview_rect.color = Color(0.8, 0.5, 0.2, 0.5) # 벨트
 		elif build_type == 10: preview_rect.color = Color(0.5, 0.5, 0.5, 0.5) # 가공소
+		elif build_type == 11: preview_rect.color = Color(0.8, 0.3, 0.1, 0.5) # 미사일
 	
 	# UI 하이라이트 업데이트
 	for i in range(hotbar_slots.size()):
@@ -507,8 +646,12 @@ func handle_building():
 	
 	var max_grid = 2 # 5x5 (player)
 		
-	var is_internal = (build_type >= 1 and build_type <= 4) or (build_type >= 8 and build_type <= 10)
-	var is_external = (build_type >= 5 and build_type <= 7)
+	var check_type = build_type
+	if build_type == -1 and is_instance_valid(moving_building):
+		check_type = moving_building.get_meta("build_type_id") if moving_building.has_meta("build_type_id") else 1
+		
+	var is_internal = (check_type >= 1 and check_type <= 4) or (check_type >= 8 and check_type <= 11)
+	var is_external = (check_type >= 5 and check_type <= 7)
 	
 	var is_inside = abs(grid_pos.x) <= max_grid and abs(grid_pos.y) <= max_grid
 	var is_outer_ring = max(abs(grid_pos.x), abs(grid_pos.y)) == max_grid + 1
@@ -525,22 +668,36 @@ func handle_building():
 		return
 	
 	if is_instance_valid(preview_rect):
-		if build_type == 1: preview_rect.color = Color(0.0, 0.3, 0.8, 0.5)
-		elif build_type == 2: preview_rect.color = Color(0.8, 0.0, 0.0, 0.5)
-		elif build_type == 3: preview_rect.color = Color(0.8, 0.8, 0.0, 0.5)
-		elif build_type == 4: preview_rect.color = Color(1.0, 0.0, 1.0, 0.5)
-		elif build_type == 5: preview_rect.color = Color(0.4, 0.4, 0.5, 0.5)
-		elif build_type == 6: preview_rect.color = Color(0.0, 0.6, 0.8, 0.5)
-		elif build_type == 7: preview_rect.color = Color(0.3, 0.2, 0.1, 0.5)
-		elif build_type == 8: preview_rect.color = Color(0.2, 0.8, 0.2, 0.5)
-		elif build_type == 9: preview_rect.color = Color(0.8, 0.5, 0.2, 0.5)
-		elif build_type == 10: preview_rect.color = Color(0.5, 0.5, 0.5, 0.5)
+		if check_type == 1: preview_rect.color = Color(0.0, 0.3, 0.8, 0.5)
+		elif check_type == 2: preview_rect.color = Color(0.8, 0.0, 0.0, 0.5)
+		elif check_type == 3: preview_rect.color = Color(0.8, 0.8, 0.0, 0.5)
+		elif check_type == 4: preview_rect.color = Color(1.0, 0.0, 1.0, 0.5)
+		elif check_type == 5: preview_rect.color = Color(0.4, 0.4, 0.5, 0.5)
+		elif check_type == 6: preview_rect.color = Color(0.0, 0.6, 0.8, 0.5)
+		elif check_type == 7: preview_rect.color = Color(0.3, 0.2, 0.1, 0.5)
+		elif check_type == 8: preview_rect.color = Color(0.2, 0.8, 0.2, 0.5)
+		elif check_type == 9: preview_rect.color = Color(0.8, 0.5, 0.2, 0.5)
+		elif check_type == 10: preview_rect.color = Color(0.5, 0.5, 0.5, 0.5)
+		elif check_type == 11: preview_rect.color = Color(0.8, 0.3, 0.1, 0.5) # 미사일 (다크 오렌지)
+		
+		if build_type == -1: preview_rect.color = Color(1.0, 1.0, 1.0, 0.5) # 이동 모드는 반투명 흰색도 괜찮지만 check_type 따라감
 	
 	var local_pos = FactoryManager.get_local_pos(grid_pos)
 	build_preview.global_position = target.to_global(local_pos)
 	
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		if not floor_grids[current_floor].has(grid_pos):
+			if build_type == -1 and is_instance_valid(moving_building):
+				moving_building.grid_pos = grid_pos
+				if "floor_index" in moving_building: moving_building.floor_index = current_floor
+				moving_building.position = local_pos
+				floor_grids[current_floor][grid_pos] = moving_building
+				
+				moving_building = null
+				build_type = 0
+				if is_instance_valid(build_preview): build_preview.visible = false
+				return
+				
 			var building = null
 			
 			if build_type == 1: 
@@ -618,11 +775,27 @@ func handle_building():
 					add_item("monster_core", -2)
 				else:
 					print("자원 부족: 돌 15, 코어 2 필요 (가공소)")
+			elif build_type == 11:
+				if inventory.get("steel_plate", 0) >= 5 and inventory.get("monster_core", 0) >= 10:
+					var missile_script = preload("res://scripts/missile_turret.gd")
+					building = missile_script.new()
+					add_item("steel_plate", -5)
+					add_item("monster_core", -10)
+				else:
+					print("자원 부족: 강철 5, 코어 10 필요 (미사일 타워)")
 				
 			if building:
 				if "grid_pos" in building: building.grid_pos = grid_pos
 				if "direction" in building: building.direction = build_direction
 				if "floor_index" in building: building.floor_index = current_floor
+				
+				# 건물 메타데이터 설정
+				building.set_meta("level", 1)
+				building.set_meta("build_type_id", build_type)
+				var b_names = ["", "기관총", "스나이퍼", "샷건", "레이저", "방벽", "수리소", "드릴", "공급기", "벨트", "가공소", "미사일"]
+				if build_type > 0 and build_type < b_names.size():
+					building.set_meta("b_name", b_names[build_type])
+				
 				building.position = local_pos
 				
 				if build_direction == Vector2i.RIGHT: building.rotation = 0
@@ -661,6 +834,9 @@ func build_furnace():
 	else:
 		print("자원이 부족합니다. (나무 2개, 돌 2개 필요)")
 
+func add_camera_shake(intensity: float):
+	shake_intensity = max(shake_intensity, intensity)
+
 func destroy_buildings_in_radius(world_pos: Vector2, radius: float):
 	var destroyed_count = 0
 	for f in floor_grids.keys():
@@ -670,9 +846,22 @@ func destroy_buildings_in_radius(world_pos: Vector2, radius: float):
 			var building = grid[g_pos]
 			if is_instance_valid(building):
 				if building.global_position.distance_to(world_pos) <= radius:
-					building.queue_free()
-					keys_to_erase.append(g_pos)
-					destroyed_count += 1
+					var survive_chance = 0.3 # 일반 건물은 30% 확률로 생존
+					
+					# 방벽 등 자체 체력(내구도)이 있는 방어형 건물은 생존 확률이 80%로 높음
+					if building.has_method("take_damage"):
+						survive_chance = 0.8
+						
+					if randf() > survive_chance:
+						building.queue_free()
+						keys_to_erase.append(g_pos)
+						destroyed_count += 1
+					else:
+						# 살아남았을 경우 시각적 피격 효과 부여
+						if "modulate" in building:
+							building.modulate = Color(2.0, 1.0, 1.0)
+							var tween = get_tree().create_tween()
+							tween.tween_property(building, "modulate", Color(1, 1, 1), 0.3)
 		for k in keys_to_erase:
 			grid.erase(k)
 	return destroyed_count
@@ -688,21 +877,107 @@ func interact_with_resource():
 		if dist < closest_dist:
 			closest_dist = dist
 			closest_resource = res
-			
 	if closest_resource != null:
 		closest_resource.gather(self)
 
 func add_floor():
+	current_floor += 1
 	max_floor += 1
 	
 	var floor_node = Node2D.new()
-	floor_node.name = "Floor" + str(max_floor)
-	add_child(floor_node)
-	
 	floor_nodes[max_floor] = floor_node
+	add_child(floor_node)
 	floor_grids[max_floor] = {}
 	
-	print(str(max_floor) + "층이 증축되었습니다!")
+	change_floor(max_floor)
+	print(str(max_floor) + "층이 추가되었습니다!")
+
+func show_upgrade_selection():
+	if not is_instance_valid(upgrade_card_panel): return
+	
+	# 게임 일시정지
+	get_tree().paused = true
+	upgrade_card_panel.visible = true
+	
+	# 기존 UI 찌꺼기 제거
+	for child in upgrade_card_panel.get_children():
+		child.queue_free()
+		
+	var title = Label.new()
+	title.text = "보스 처치 보상! 업그레이드를 선택하세요"
+	title.position = Vector2(0, 100)
+	title.size = Vector2(get_viewport_rect().size.x, 50)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 40)
+	upgrade_card_panel.add_child(title)
+	
+	var hbox = HBoxContainer.new()
+	hbox.size = Vector2(900, 400)
+	hbox.position = Vector2(get_viewport_rect().size.x / 2.0 - 450, 200)
+	hbox.add_theme_constant_override("separation", 30)
+	upgrade_card_panel.add_child(hbox)
+	
+	var all_options = [
+		{"id": "floor", "title": "[구조물] 층 증축", "desc": "요새의 층수를 1층 올립니다.\n디메리트: 기본 이동 속도 15% 감소"},
+		{"id": "speed", "title": "[기동성] 엔진 오버클럭", "desc": "요새의 기본 이동 속도가 20% 증가합니다."},
+		{"id": "hp", "title": "[방어] 티타늄 장갑", "desc": "요새의 최대 HP가 300 증가하고,\n현재 HP를 300 회복합니다."},
+		{"id": "range", "title": "[화력] 고급 조준경", "desc": "모든 공격 타워의 사거리가 20% 증가합니다."},
+		{"id": "damage", "title": "[화력] 철갑탄", "desc": "모든 공격 타워의 데미지가 20% 증가합니다."},
+		{"id": "drill", "title": "[생산] 초정밀 드릴", "desc": "드릴의 자원 채굴 속도가 20% 빨라집니다."}
+	]
+	
+	all_options.shuffle()
+	var selected = all_options.slice(0, 3)
+	
+	for opt in selected:
+		var card = Button.new()
+		card.custom_minimum_size = Vector2(280, 400)
+		
+		var vbox = VBoxContainer.new()
+		vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		vbox.add_theme_constant_override("separation", 30)
+		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(vbox)
+		
+		var l_title = Label.new()
+		l_title.text = "\n" + opt["title"]
+		l_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l_title.add_theme_font_size_override("font_size", 22)
+		l_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(l_title)
+		
+		var l_desc = Label.new()
+		l_desc.text = opt["desc"]
+		l_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l_desc.custom_minimum_size = Vector2(260, 200)
+		l_desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(l_desc)
+		
+		card.pressed.connect(func(): _apply_upgrade(opt["id"]))
+		hbox.add_child(card)
+
+func _apply_upgrade(id: String):
+	if id == "floor":
+		add_floor()
+		GameManager.stat_speed_mult *= 0.85
+	elif id == "speed":
+		GameManager.stat_speed_mult *= 1.2
+	elif id == "hp":
+		max_hp += 300
+		hp += 300
+	elif id == "range":
+		GameManager.stat_range_mult *= 1.2
+	elif id == "damage":
+		GameManager.stat_damage_mult *= 1.2
+	elif id == "drill":
+		GameManager.stat_drill_mult *= 0.8 # 간격이 줄어야 빨라짐
+		
+	base_speed = 100.0 * GameManager.stat_speed_mult
+	
+	upgrade_card_panel.visible = false
+	get_tree().paused = false
+	update_ui()
 	
 	# 새로운 층으로 자동 이동
 	change_floor(max_floor)
@@ -723,3 +998,75 @@ func change_floor(target_floor):
 			floor_nodes[f].visible = false
 	
 	print("현재 층: " + str(current_floor) + "F")
+
+func open_context_ui(building, refresh = false):
+	selected_building = building
+	building_context_panel.visible = true
+	
+	if not refresh:
+		var mouse_pos = get_viewport().get_mouse_position()
+		
+		var vp_size = get_viewport_rect().size
+		if mouse_pos.x + 200 > vp_size.x: mouse_pos.x -= 220
+		else: mouse_pos.x += 20
+		if mouse_pos.y + 230 > vp_size.y: mouse_pos.y -= 230
+		else: mouse_pos.y += 20
+		
+		building_context_panel.position = mouse_pos
+	
+	var b_name = building.get_meta("b_name") if building.has_meta("b_name") else "건물"
+	var b_level = building.get_meta("level") if building.has_meta("level") else 1
+	context_title_label.text = b_name + " (Lv." + str(b_level) + ")"
+	
+	var cost_core = b_level * 5
+	btn_upgrade.text = "업그레이드\n(코어 " + str(cost_core) + ")"
+	
+	if b_name == "공급기":
+		filter_option.visible = true
+		building_context_panel.size.y = 230
+		filter_option.selected = building.get_meta("filter_idx") if building.has_meta("filter_idx") else 0
+	else:
+		filter_option.visible = false
+		building_context_panel.size.y = 190
+
+func _on_btn_upgrade():
+	if not is_instance_valid(selected_building): return
+	var b_level = selected_building.get_meta("level") if selected_building.has_meta("level") else 1
+	var cost_core = b_level * 5
+	if inventory.get("monster_core", 0) >= cost_core:
+		add_item("monster_core", -cost_core)
+		selected_building.set_meta("level", b_level + 1)
+		open_context_ui(selected_building, true)
+	else:
+		print("코어가 부족합니다!")
+
+func _on_btn_move():
+	if not is_instance_valid(selected_building): return
+	moving_building = selected_building
+	moving_grid_pos = selected_building.grid_pos
+	building_context_panel.visible = false
+	
+	# 임시로 그리드에서 제거 (이동 중)
+	if floor_grids[current_floor].has(moving_grid_pos):
+		floor_grids[current_floor].erase(moving_grid_pos)
+		
+	# 이동 상태 설정
+	build_type = -1 # 이동 모드
+	if is_instance_valid(build_preview): build_preview.visible = true
+	# 이동할 건물을 안보이게 처리하거나 투명하게 할 수 있지만, 여기서는 그대로 둡니다.
+
+func _on_btn_demolish():
+	if not is_instance_valid(selected_building): return
+	var b_pos = selected_building.grid_pos
+	if floor_grids[current_floor].has(b_pos):
+		floor_grids[current_floor].erase(b_pos)
+	selected_building.queue_free()
+	selected_building = null
+	building_context_panel.visible = false
+	
+	# 자원 50% 환불 (임시로 코어 2개)
+	add_item("monster_core", 2)
+
+func _on_filter_selected(index):
+	if is_instance_valid(selected_building) and selected_building.get_meta("b_name") == "공급기":
+		selected_building.set_meta("filter_idx", index)

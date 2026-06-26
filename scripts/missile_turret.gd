@@ -1,0 +1,64 @@
+extends Node2D
+
+var grid_pos = Vector2i()
+var direction = Vector2i.RIGHT
+var floor_index = 1
+
+var attack_timer = 0.0
+var attack_rate = 2.0 # 미사일: 느린 속도, 광역 데미지
+var target_enemy = null
+
+@onready var sprite = null
+
+func _ready():
+	sprite = Node2D.new()
+	add_child(sprite)
+	
+	var base = ColorRect.new()
+	base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	base.size = Vector2(40, 40)
+	base.position = Vector2(-20, -20)
+	base.color = Color(0.8, 0.3, 0.1, 1.0) # 다크 오렌지색 타워
+	sprite.add_child(base)
+	
+	var barrel = ColorRect.new()
+	barrel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	barrel.size = Vector2(30, 20)
+	barrel.position = Vector2(10, -10)
+	barrel.color = Color(0.2, 0.2, 0.2, 1.0) # 어두운 총구
+	sprite.add_child(barrel)
+
+func _process(delta):
+	target_enemy = get_target_enemy()
+	
+	if is_instance_valid(target_enemy):
+		var target_angle = (target_enemy.global_position - global_position).angle()
+		sprite.global_rotation = lerp_angle(sprite.global_rotation, target_angle, 10.0 * delta)
+		
+		attack_timer -= delta
+		if attack_timer <= 0:
+			shoot()
+			attack_timer = attack_rate
+
+func get_target_enemy():
+	var enemies = get_tree().get_nodes_in_group("enemy")
+	var closest = null
+	var min_dist = 500.0 * GameManager.stat_range_mult # 사거리 500
+	
+	for e in enemies:
+		var dist = global_position.distance_to(e.global_position)
+		if dist <= min_dist:
+			min_dist = dist
+			closest = e
+	return closest
+
+func shoot():
+	if not is_instance_valid(target_enemy): return
+	
+	var script = preload("res://scripts/missile_projectile.gd")
+	var proj = script.new()
+	proj.global_position = global_position
+	proj.direction = global_position.direction_to(target_enemy.global_position)
+	var level = get_meta("level") if has_meta("level") else 1
+	if "damage" in proj: proj.damage = 25.0 + (level - 1) * 10.0
+	get_tree().current_scene.add_child(proj)

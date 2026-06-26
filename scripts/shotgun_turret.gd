@@ -15,6 +15,7 @@ func _ready():
 	add_child(sprite)
 	
 	var rect = ColorRect.new()
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.size = Vector2(40, 40)
 	rect.position = Vector2(-20, -20)
 	rect.color = Color(0.8, 0.8, 0.0, 1.0) # 노란색
@@ -22,6 +23,7 @@ func _ready():
 	
 	# 넓은 총구 묘사
 	var barrel = ColorRect.new()
+	barrel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	barrel.size = Vector2(20, 20)
 	barrel.position = Vector2(15, -10)
 	barrel.color = Color(0.3, 0.3, 0.3, 1.0)
@@ -42,7 +44,7 @@ func _process(delta):
 func get_target_enemy():
 	var enemies = get_tree().get_nodes_in_group("enemy")
 	var closest = null
-	var min_dist = 280.0 # 샷건 사거리 (요새 근거리 커버)
+	var min_dist = 280.0 * GameManager.stat_range_mult # 샷건 사거리 (요새 근거리 커버)
 	
 	for e in enemies:
 		var dist = global_position.distance_to(e.global_position)
@@ -65,8 +67,9 @@ func shoot() -> bool:
 			proj.direction = base_dir.rotated(angle_offset)
 			
 			if "speed" in proj: proj.speed = 300.0 + randf() * 100.0
-			if "damage" in proj: proj.damage = 15.0 + (GameManager.upg_turret_damage_level * 5.0)
-			
+			if "attack_type" in proj: proj.attack_type = "scatter"
+			var level = get_meta("level") if has_meta("level") else 1
+			if "damage" in proj: proj.damage = 2.0 + (level - 1) * 1.0
 			get_tree().current_scene.add_child(proj)
 		return true
 	return false

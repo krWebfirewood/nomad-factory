@@ -16,6 +16,7 @@ func _ready():
 	add_child(sprite)
 	
 	var rect = ColorRect.new()
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.size = Vector2(40, 40)
 	rect.position = Vector2(-20, -20)
 	rect.color = Color(0.8, 0.0, 0.0, 1.0) # 빨간색
@@ -23,6 +24,7 @@ func _ready():
 	
 	# 총열
 	var barrel = ColorRect.new()
+	barrel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	barrel.size = Vector2(30, 8)
 	barrel.position = Vector2(10, -4)
 	barrel.color = Color(0.2, 0.2, 0.2, 1.0)
@@ -43,7 +45,7 @@ func _process(delta):
 func get_target_enemy():
 	var enemies = get_tree().get_nodes_in_group("enemy")
 	var closest = null
-	var min_dist = 800.0 # 스나이퍼 사거리 (화면 밖까지)
+	var min_dist = 800.0 * GameManager.stat_range_mult # 스나이퍼 사거리 (화면 밖까지)
 	
 	for e in enemies:
 		var dist = global_position.distance_to(e.global_position)
@@ -60,8 +62,9 @@ func shoot() -> bool:
 		
 		# 스나이퍼 프로젝타일 스탯 (추후 projectile.gd에서 지원하게 수정 필요, 임시로 속도/데미지 올리기)
 		if "speed" in proj: proj.speed = 800.0
-		if "damage" in proj: proj.damage = 100.0 + (GameManager.upg_turret_damage_level * 50.0)
-		
+		if "attack_type" in proj: proj.attack_type = "piercing"
+		var level = get_meta("level") if has_meta("level") else 1
+		if "damage" in proj: proj.damage = 10.0 + (level - 1) * 3.0
 		get_tree().current_scene.add_child(proj)
 		return true
 	return false

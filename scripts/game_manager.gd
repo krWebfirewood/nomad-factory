@@ -15,10 +15,16 @@ var _base_spawn_rate = 2.0 # 초반에는 2초에 한 마리씩 천천히
 var nexus_setup_timer = 60.0
 var nexus_placed = false
 
-# 업그레이드 레벨 변수
+# 업그레이드 레벨 변수 (기존)
 var upg_miner_speed_level = 0
 var upg_turret_damage_level = 0
 var upg_player_hp_level = 0
+
+# 로그라이트 보스 보상 스탯 배율 (퍼센트 계수)
+var stat_speed_mult = 1.0       # 이동 속도
+var stat_damage_mult = 1.0      # 공격 데미지
+var stat_range_mult = 1.0       # 사거리
+var stat_drill_mult = 1.0       # 채굴 속도 (작을수록 빠름, 혹은 반대로 처리)
 
 func _ready():
 	pass
@@ -56,14 +62,22 @@ func _process(delta):
 			_spawn_timer = current_spawn_rate
 
 func spawn_boss():
-	var boss_script = preload("res://scripts/boss.gd")
-	var boss = boss_script.new()
+	var boss_types = [
+		preload("res://scripts/boss.gd"),
+		preload("res://scripts/boss_incinerator.gd"),
+		preload("res://scripts/boss_broodmother.gd")
+	]
+	
+	var boss_script = boss_types[randi() % boss_types.size()]
+	var boss_instance = boss_script.new()
+	boss = boss_instance
+	
 	var angle = randf() * PI * 2
 	var distance = 800.0
 	if is_instance_valid(player):
-		boss.global_position = player.global_position + Vector2(cos(angle), sin(angle)) * distance
-	boss.setup(current_wave)
-	get_tree().current_scene.add_child(boss)
+		boss_instance.global_position = player.global_position + Vector2(cos(angle), sin(angle)) * distance
+	boss_instance.setup(current_wave)
+	get_tree().current_scene.add_child(boss_instance)
 	print("!!! 거대 보스 등장 !!!")
 
 func _spawn_enemy():

@@ -9,12 +9,14 @@ var anim_timer = 0.0
 
 func _ready():
 	base_rect = ColorRect.new()
+	base_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	base_rect.size = Vector2(64, 64)
 	base_rect.position = Vector2(-32, -32)
 	base_rect.color = Color(0.3, 0.2, 0.1, 1.0) # 짙은 갈색 기단
 	add_child(base_rect)
 	
 	drill_bit = ColorRect.new()
+	drill_bit.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	drill_bit.size = Vector2(20, 40)
 	drill_bit.position = Vector2(-10, -20)
 	drill_bit.color = Color(0.8, 0.8, 0.8, 1.0) # 은색 드릴 날
@@ -27,7 +29,8 @@ func _process(delta):
 	
 	drill_timer -= delta
 	if drill_timer <= 0:
-		drill_timer = 2.0
+		var level = get_meta("level") if has_meta("level") else 1
+		drill_timer = max(0.2, (2.0 - (level - 1) * 0.2)) * GameManager.stat_drill_mult
 		mine_resources()
 
 func mine_resources():

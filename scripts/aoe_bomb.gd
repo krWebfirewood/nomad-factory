@@ -18,6 +18,7 @@ func _ready():
 	circle.polygon = points
 	add_child(circle)
 	
+	# 원형 외곽선
 	var outline = Line2D.new()
 	var line_points = points.duplicate()
 	line_points.append(points[0]) # 닫힌 선
@@ -25,6 +26,23 @@ func _ready():
 	outline.width = 2.0
 	outline.default_color = Color(1, 0, 0, 1)
 	add_child(outline)
+	
+	# 파티클 추가
+	var particles = CPUParticles2D.new()
+	particles.name = "ExplosionParticles"
+	particles.emitting = false
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.amount = 60
+	particles.lifetime = 0.6
+	particles.spread = 180.0
+	particles.gravity = Vector2.ZERO
+	particles.initial_velocity_min = 100.0
+	particles.initial_velocity_max = 400.0
+	particles.scale_amount_min = 10.0
+	particles.scale_amount_max = 30.0
+	particles.color = Color(1.0, 0.6, 0.1) # 밝은 주황색
+	add_child(particles)
 	
 	var timer = get_tree().create_timer(lifetime)
 	timer.timeout.connect(_on_explode)
@@ -46,6 +64,13 @@ func _on_explode():
 	modulate = Color(2.0, 1.0, 0.2, 1.0) # 밝은 노란/주황색 빛
 	scale = Vector2(1.1, 1.1)
 	
+	if has_node("ExplosionParticles"):
+		$ExplosionParticles.emitting = true
+		
+	# 카메라 쉐이크
+	if is_instance_valid(GameManager.player) and GameManager.player.has_method("add_camera_shake"):
+		GameManager.player.add_camera_shake(30.0)
+		
 	# 데미지 판정
 	if is_instance_valid(GameManager.player):
 		var dist_to_player = GameManager.player.global_position.distance_to(global_position)

@@ -29,7 +29,7 @@ func _process(delta):
 func get_target_enemy():
 	var enemies = get_tree().get_nodes_in_group("enemy")
 	var closest = null
-	var min_dist = 400.0 # 기관총 사거리 (요새 전체를 커버하도록 넉넉히)
+	var min_dist = 400.0 * GameManager.stat_range_mult # 기관총 사거리 (요새 전체를 커버하도록 넉넉히)
 	
 	for e in enemies:
 		var dist = global_position.distance_to(e.global_position)
@@ -43,6 +43,9 @@ func shoot() -> bool:
 		var proj = projectile_scene.instantiate()
 		proj.global_position = global_position
 		proj.direction = global_position.direction_to(target_enemy.global_position)
+		if "attack_type" in proj: proj.attack_type = "kinetic"
+		var level = get_meta("level") if has_meta("level") else 1
+		if "damage" in proj: proj.damage += (level - 1) * 0.5
 		get_tree().current_scene.add_child(proj)
 		return true
 	return false

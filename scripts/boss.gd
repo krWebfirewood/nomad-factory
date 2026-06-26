@@ -11,6 +11,8 @@ var dash_speed = 800.0
 var dash_duration = 0.8
 var damage_cooldown = 0.0
 
+var armor_type = "heavy"
+
 var state = "IDLE" # "IDLE", "WINDUP", "DASH"
 var windup_timer = 0.0
 var dash_direction = Vector2()
@@ -52,7 +54,8 @@ func _ready():
 
 func setup(wave: int):
 	wave_level = wave
-	max_hp = 100 + (wave * 50)
+	# 체력 적당히 상향
+	max_hp = 300 + (wave * 120) + int(pow(1.15, wave) * 50.0)
 	hp = max_hp
 	speed = 30.0 + (wave * 2.0)
 
@@ -72,21 +75,22 @@ func _physics_process(delta):
 			velocity = velocity.move_toward(direction * speed, 10.0)
 			
 		dash_timer -= delta
-		if dash_timer <= 0:
+		aoe_timer -= delta
+		
+		# 광역 포격(AoE) 패턴 우선 발동 (타이머가 다 되었을 경우)
+		if aoe_timer <= 0:
+			aoe_timer = aoe_rate
+			fire_aoe_bomb()
+			# 포격과 대쉬가 겹치지 않게 대쉬 쿨타임을 최소 2.5초 연장
+			dash_timer = max(dash_timer, 2.5)
+			
+		elif dash_timer <= 0:
 			state = "WINDUP"
 			windup_timer = 1.5
 			dash_direction = direction
 			warning_line.points = PackedVector2Array([Vector2.ZERO, dash_direction * 1500.0])
 			warning_line.visible = true
 			velocity = Vector2.ZERO
-			
-		# 광역 포격(AoE) 패턴은 대쉬를 안 할 때만 발동
-		aoe_timer -= delta
-		if aoe_timer <= 0:
-			aoe_timer = aoe_rate
-			fire_aoe_bomb()
-			# 포격과 대쉬가 겹치지 않게 대쉬 쿨타임을 최소 2.5초 연장
-			dash_timer = max(dash_timer, 2.5)
 			
 	elif state == "WINDUP":
 		velocity = Vector2.ZERO
@@ -124,6 +128,8 @@ func _physics_process(delta):
 					if collider.has_method("take_damage"):
 						collider.take_damage(30) # 보스는 충돌 시 피해를 줌
 						damage_cooldown = 0.5 # 0.5초마다 데미지
+						if collider.has_method("add_camera_shake"):
+							collider.add_camera_shake(15.0) # 대쉬/몸통 박치기 피격 시 약간의 화면 흔들림
 						
 				# 부딪히면 대쉬 취소 후 즉시 튕겨냄
 				if state == "DASH" or state == "WINDUP":
@@ -147,13 +153,37 @@ func fire_aoe_bomb():
 	var bomb_script = preload("res://scripts/aoe_bomb.gd")
 	var bomb = bomb_script.new()
 	
+	# 폭발까지 걸리는 시간 (기본 2.5초, 웨이브에 따라 최소 1.5초까지 단축)
+	var bomb_lifetime = max(1.5, 2.5 - (wave_level * 0.05))
+	bomb.set("lifetime", bomb_lifetime)
+	
 	# 플레이어 위치 근처로 조준 (완전 유도 방지)
 	var offset = Vector2(randf_range(-80, 80), randf_range(-80, 80))
 	bomb.global_position = GameManager.player.global_position + offset
 	get_tree().current_scene.add_child(bomb)
 
-func take_damage(amount):
-	hp -= amount
+func take_damage(amount, attack_type = "normal"):
+	var mult = 1.0
+	if attack_type == "kinetic":
+		if armor_type == "light": mult = 1.0
+		elif armor_type == "medium": mult = 0.75
+		elif armor_type == "heavy": mult = 0.5
+	elif attack_type == "piercing":
+		if armor_type == "light": mult = 0.5
+		elif armor_type == "medium": mult = 1.0
+		elif armor_type == "heavy": mult = 1.5
+	elif attack_type == "scatter":
+		if armor_type == "light": mult = 1.5
+		elif armor_type == "medium": mult = 1.0
+		elif armor_type == "heavy": mult = 0.5
+	elif attack_type == "explosive":
+		if armor_type == "light": mult = 0.5
+		elif armor_type == "medium": mult = 1.0
+		elif armor_type == "heavy": mult = 1.5
+	elif attack_type == "energy":
+		mult = 1.0
+		
+	hp -= amount * mult
 	if sprite:
 		var orig_color = Color(0.5, 0.0, 0.5, 1.0)
 		sprite.modulate = Color(5, 5, 5)
@@ -170,15 +200,14 @@ func die():
 	if is_dead: return
 	is_dead = true
 	
+	# 요새 증축 로직 대신 업그레이드 선택 UI 호출
 	if is_instance_valid(GameManager.player):
+		if GameManager.player.has_method("show_upgrade_selection"):
+			GameManager.player.show_upgrade_selection()
+		
 		# 보스 처치 보상
 		GameManager.player.add_item("monster_core", 50)
 		GameManager.player.add_item("wood", 20)
 		GameManager.player.add_item("stone", 20)
-		
-		# 트레일러(보조 거점) 획득!
-		if GameManager.player.has_method("add_floor"):
-			GameManager.player.add_floor()
-			print("=== 거대 보스 처치! 보조 거점을 획득했습니다! ===")
 			
 	queue_free()

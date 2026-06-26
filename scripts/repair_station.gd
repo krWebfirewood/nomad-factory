@@ -8,6 +8,7 @@ var heal_amount = 5
 
 func _ready():
 	sprite = ColorRect.new()
+	sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sprite.size = Vector2(64, 64)
 	sprite.position = Vector2(-32, -32)
 	sprite.color = Color(0.0, 0.6, 0.8, 1.0) # 청록색 (수리소)
@@ -15,12 +16,14 @@ func _ready():
 	
 	# 십자가 마크
 	var cross1 = ColorRect.new()
+	cross1.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cross1.size = Vector2(10, 30)
 	cross1.position = Vector2(-5, -15)
 	cross1.color = Color(1, 1, 1, 1)
 	sprite.add_child(cross1)
 	
 	var cross2 = ColorRect.new()
+	cross2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cross2.size = Vector2(30, 10)
 	cross2.position = Vector2(-15, -5)
 	cross2.color = Color(1, 1, 1, 1)

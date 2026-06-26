@@ -12,6 +12,7 @@ var pass_rate = 0.5
 
 func _ready():
 	sprite = ColorRect.new()
+	sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sprite.size = Vector2(40, 40)
 	sprite.position = Vector2(-20, -20)
 	sprite.color = Color(0.8, 0.5, 0.2, 1.0) # 갈색 벨트
@@ -24,6 +25,7 @@ func _ready():
 	arrow.position = Vector2(20, 20)
 	
 	item_rect = ColorRect.new()
+	item_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	item_rect.size = Vector2(16, 16)
 	item_rect.position = Vector2(-8, -8)
 	item_rect.z_index = 10

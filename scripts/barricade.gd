@@ -23,6 +23,7 @@ func _ready():
 		add_collision_exception_with(GameManager.player)
 	
 	sprite = ColorRect.new()
+	sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sprite.size = Vector2(64, 64)
 	sprite.position = Vector2(-32, -32)
 	sprite.color = Color(0.4, 0.4, 0.5, 1.0) # 철회색

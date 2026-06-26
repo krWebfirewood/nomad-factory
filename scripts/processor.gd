@@ -12,6 +12,7 @@ var process_rate = 2.0
 
 func _ready():
 	sprite = ColorRect.new()
+	sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sprite.size = Vector2(50, 50)
 	sprite.position = Vector2(-25, -25)
 	sprite.color = Color(0.5, 0.5, 0.5, 1.0) # 회색 가공소
@@ -24,6 +25,7 @@ func _ready():
 	arrow.position = Vector2(25, 25)
 	
 	item_rect = ColorRect.new()
+	item_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	item_rect.size = Vector2(20, 20)
 	item_rect.position = Vector2(-10, -10)
 	item_rect.z_index = 10 # 항상 맨 위에 보이도록
@@ -37,6 +39,9 @@ func _process(delta):
 			if item == "iron":
 				item = "steel_plate"
 				item_rect.color = Color(0.2, 0.6, 1.0, 1.0) # 밝은 파란색(강철)
+			elif item == "stone":
+				item = "stone_brick"
+				item_rect.color = Color(0.3, 0.3, 0.3, 1.0) # 짙은 회색(석재 벽돌)
 			try_pass_item()
 
 func try_pass_item():
@@ -66,8 +71,12 @@ func accept_item(new_item) -> bool:
 		item_rect.visible = true
 		if item == "iron":
 			item_rect.color = Color(0.8, 0.8, 0.8, 1.0) # 굽기 전(밝은 은색)
+		elif item == "stone":
+			item_rect.color = Color(0.6, 0.6, 0.6, 1.0) # 굽기 전 돌(회색)
 		else:
 			item_rect.color = Color(1.0, 1.0, 1.0, 1.0)
+		var level = get_meta("level") if has_meta("level") else 1
+		process_rate = max(0.5, 2.0 - (level - 1) * 0.3)
 		process_timer = process_rate
 		return true
 	return false
