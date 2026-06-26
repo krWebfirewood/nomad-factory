@@ -36,7 +36,7 @@ func game_over():
 		hp_label.modulate = Color(1, 0, 0)
 
 func accept_item(item) -> bool:
-	if is_instance_valid(GameManager.player):
+	if is_instance_valid(GameManager.player) and not GameManager.player.is_queued_for_deletion():
 		GameManager.player.add_item(item, 1)
 		# 넥서스 흡수 시각 효과 (초록색 깜빡임)
 		if has_node("Sprite2D"):

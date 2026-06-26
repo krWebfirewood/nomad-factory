@@ -40,7 +40,7 @@ func _process(delta):
 
 func try_pass_item():
 	var player = GameManager.player
-	if not is_instance_valid(player): return
+	if not is_instance_valid(player) or player.is_queued_for_deletion(): return
 	
 	var next_pos = grid_pos + direction
 	

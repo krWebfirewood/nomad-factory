@@ -36,6 +36,13 @@ func _ready():
 		set_meta("filter_idx", 0)
 
 func _process(delta):
+	var player = GameManager.player
+	if not is_instance_valid(player) or player.is_queued_for_deletion(): return
+	
+	var idx = get_meta("filter_idx") if has_meta("filter_idx") else 0
+	var target_item = filters[idx]["id"]
+	if target_item == "off": return
+	
 	pass_timer -= delta
 	if pass_timer <= 0:
 		pass_timer = pass_rate

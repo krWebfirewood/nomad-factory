@@ -184,6 +184,11 @@ func take_damage(amount, attack_type = "normal"):
 		mult = 1.0
 		
 	hp -= amount * mult
+	
+	if is_instance_valid(GameManager.player) and GameManager.player.active_relics.get("vampire"):
+		if randf() < 0.05:
+			GameManager.player.hp = min(GameManager.player.max_hp, GameManager.player.hp + 1)
+			
 	if sprite:
 		var orig_color = Color(0.5, 0.0, 0.5, 1.0)
 		sprite.modulate = Color(5, 5, 5)
@@ -200,14 +205,44 @@ func die():
 	if is_dead: return
 	is_dead = true
 	
+	# 도파민 폭발 연출: 슬로우 모션 및 카메라 쉐이크
+	Engine.time_scale = 0.2
+	if is_instance_valid(GameManager.player):
+		if GameManager.player.has_method("add_camera_shake"):
+			GameManager.player.add_camera_shake(30.0)
+			
+	# 폭발 깜빡임 이펙트
+	for i in range(10):
+		if is_instance_valid(sprite):
+			sprite.modulate = Color(10, 10, 10) if i % 2 == 0 else Color(1, 0, 0)
+		await get_tree().create_timer(0.1 * Engine.time_scale).timeout
+		
+	Engine.time_scale = 1.0
+	
+	# 전리품(코어) 대량 스폰
+	var dropped_scene = preload("res://scenes/dropped_item.tscn")
+	var drop_count = randi_range(30, 50)
+	for i in range(drop_count):
+		var item = dropped_scene.instantiate()
+		item.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-10, 10))
+		item.set("item_type", "monster_core")
+		get_tree().current_scene.add_child(item)
+		
+	var mat_drop_count = randi_range(15, 25)
+	for i in range(mat_drop_count):
+		var item = dropped_scene.instantiate()
+		item.global_position = global_position + Vector2(randf_range(-20, 20), randf_range(-20, 20))
+		var r = randf()
+		var advanced_chance = min(0.5, wave_level * 0.05)
+		if r < advanced_chance:
+			item.set("item_type", "steel_plate")
+		else:
+			item.set("item_type", "wood" if randf() < 0.5 else "stone")
+		get_tree().current_scene.add_child(item)
+	
 	# 요새 증축 로직 대신 업그레이드 선택 UI 호출
 	if is_instance_valid(GameManager.player):
 		if GameManager.player.has_method("show_upgrade_selection"):
 			GameManager.player.show_upgrade_selection()
-		
-		# 보스 처치 보상
-		GameManager.player.add_item("monster_core", 50)
-		GameManager.player.add_item("wood", 20)
-		GameManager.player.add_item("stone", 20)
 			
 	queue_free()

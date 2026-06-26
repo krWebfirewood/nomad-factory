@@ -25,9 +25,15 @@ var stat_speed_mult = 1.0       # 이동 속도
 var stat_damage_mult = 1.0      # 공격 데미지
 var stat_range_mult = 1.0       # 사거리
 var stat_drill_mult = 1.0       # 채굴 속도 (작을수록 빠름, 혹은 반대로 처리)
+var stat_firerate_mult = 1.0    # 공격 속도 배율
 
 func _ready():
-	pass
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+func _unhandled_input(event):
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		if is_instance_valid(player) and "toggle_pause" in player:
+			player.toggle_pause()
 
 func _spawn_ore(grid_pos: Vector2i, type: String):
 	var ore = ore_scene.instantiate()
@@ -39,20 +45,31 @@ func _spawn_ore(grid_pos: Vector2i, type: String):
 	FactoryManager.register_ore(grid_pos, type)
 
 var last_boss_wave = 0
+var initial_rival_spawned = false
 
 func _process(delta):
+	if get_tree().paused: return
+	if not is_instance_valid(get_tree().current_scene): return
+	
 	game_time += delta
 	var new_wave = int(game_time / 30.0) + 1
 	
 	if new_wave > current_wave:
 		current_wave = new_wave
 		
-		# 3웨이브마다 보스 스폰 (3, 6, 9...)
 		if current_wave % 3 == 0 and current_wave > last_boss_wave:
 			spawn_boss()
 			last_boss_wave = current_wave
+			
+		# 웨이브마다 중립 요새(라이벌) 1기 스폰 (2웨이브부터)
+		if current_wave >= 2:
+			spawn_rival()
 	
 	if is_instance_valid(player):
+		if not initial_rival_spawned:
+			spawn_rival()
+			initial_rival_spawned = true
+			
 		player.update_ui()
 		
 		_spawn_timer -= delta
@@ -104,3 +121,154 @@ func _spawn_enemy():
 		enemy.setup(current_wave, type)
 		
 	get_tree().current_scene.add_child(enemy)
+
+func spawn_rival():
+	var active_rivals = get_tree().get_nodes_in_group("rival").size()
+	if active_rivals >= 2: return # 맵에 최대 2대까지만 유지
+	
+	var rival_scene = preload("res://scenes/rival_fortress.tscn")
+	var rival = rival_scene.instantiate()
+	
+	var angle = randf() * PI * 2
+	var distance = randf_range(1000.0, 1500.0)
+	if is_instance_valid(player):
+		rival.global_position = player.global_position + Vector2(cos(angle), sin(angle)) * distance
+		
+	get_tree().current_scene.add_child(rival)
+	print("중립 이동 요새(Rival)가 스폰되었습니다!")
+
+func restart_game():
+	game_time = 0.0
+	current_wave = 1
+	last_boss_wave = 0
+	initial_rival_spawned = false
+	_spawn_timer = 0.0
+	
+	upg_miner_speed_level = 0
+	upg_turret_damage_level = 0
+	upg_player_hp_level = 0
+	
+	stat_speed_mult = 1.0
+	stat_damage_mult = 1.0
+	stat_range_mult = 1.0
+	stat_drill_mult = 1.0
+	stat_firerate_mult = 1.0
+	
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+func save_game():
+	var save_data = {}
+	
+	save_data["manager"] = {
+		"game_time": game_time,
+		"current_wave": current_wave,
+		"last_boss_wave": last_boss_wave,
+		"initial_rival_spawned": initial_rival_spawned,
+		"upgrades": {
+			"miner": upg_miner_speed_level,
+			"turret": upg_turret_damage_level,
+			"hp": upg_player_hp_level
+		},
+		"stats": {
+			"speed": stat_speed_mult,
+			"damage": stat_damage_mult,
+			"range": stat_range_mult,
+			"drill": stat_drill_mult,
+			"firerate": stat_firerate_mult
+		}
+	}
+	
+	if FactoryManager.has_method("get_save_data"):
+		save_data["factory"] = FactoryManager.get_save_data()
+		
+	if is_instance_valid(player) and player.has_method("get_save_data"):
+		save_data["player"] = player.get_save_data()
+		
+	var rivals_data = []
+	for r in get_tree().get_nodes_in_group("rival"):
+		if r.has_method("get_save_data"):
+			rivals_data.append(r.get_save_data())
+	save_data["rivals"] = rivals_data
+	
+	var json_string = JSON.stringify(save_data)
+	var file = FileAccess.open("user://savegame.json", FileAccess.WRITE)
+	if file:
+		file.store_string(json_string)
+		file.close()
+		print("게임 저장 완료!")
+	else:
+		print("게임 저장 실패!")
+		
+	if is_instance_valid(player) and "toggle_pause" in player:
+		player.toggle_pause()
+
+func load_game():
+	var file = FileAccess.open("user://savegame.json", FileAccess.READ)
+	if not file:
+		print("저장된 게임이 없습니다!")
+		return
+		
+	var json_string = file.get_as_text()
+	file.close()
+	
+	var json = JSON.new()
+	var error = json.parse(json_string)
+	if error != OK:
+		print("저장 파일 파싱 실패!")
+		return
+		
+	var save_data = json.data
+	
+	# 상태 복원 전 맵 초기화
+	for n in get_tree().get_nodes_in_group("enemy"): n.queue_free()
+	for n in get_tree().get_nodes_in_group("rival"): n.queue_free()
+	for n in get_tree().get_nodes_in_group("resource"): n.queue_free()
+	
+	if is_instance_valid(player) and player.has_method("clear_buildings"):
+		player.clear_buildings()
+	
+	# Manager 복원
+	if save_data.has("manager"):
+		var m = save_data["manager"]
+		game_time = m.get("game_time", 0.0)
+		current_wave = m.get("current_wave", 1)
+		last_boss_wave = m.get("last_boss_wave", 0)
+		initial_rival_spawned = m.get("initial_rival_spawned", false)
+		
+		if m.has("upgrades"):
+			var u = m["upgrades"]
+			upg_miner_speed_level = u.get("miner", 0)
+			upg_turret_damage_level = u.get("turret", 0)
+			upg_player_hp_level = u.get("hp", 0)
+			
+		if m.has("stats"):
+			var s = m["stats"]
+			stat_speed_mult = s.get("speed", 1.0)
+			stat_damage_mult = s.get("damage", 1.0)
+			stat_range_mult = s.get("range", 1.0)
+			stat_drill_mult = s.get("drill", 1.0)
+			stat_firerate_mult = s.get("firerate", 1.0)
+	
+	# Factory 복원
+	if save_data.has("factory") and FactoryManager.has_method("load_save_data"):
+		FactoryManager.load_save_data(save_data["factory"])
+		
+	# Player 복원
+	if save_data.has("player") and is_instance_valid(player) and player.has_method("load_save_data"):
+		player.load_save_data(save_data["player"])
+		
+	# Rivals 복원
+	if save_data.has("rivals"):
+		for r_data in save_data["rivals"]:
+			var rival_scene = preload("res://scenes/rival_fortress.tscn")
+			var rival = rival_scene.instantiate()
+			get_tree().current_scene.add_child(rival)
+			if rival.has_method("load_save_data"):
+				rival.load_save_data(r_data)
+	
+	get_tree().paused = false
+	if is_instance_valid(player) and is_instance_valid(player.pause_panel):
+		player.pause_panel.visible = false
+	
+	print("게임 불러오기 완료!")

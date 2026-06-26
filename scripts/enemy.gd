@@ -115,6 +115,11 @@ func take_damage(amount, attack_type = "normal"):
 		mult = 1.0
 		
 	hp -= amount * mult
+	
+	if is_instance_valid(GameManager.player) and GameManager.player.active_relics.get("vampire"):
+		if randf() < 0.05:
+			GameManager.player.hp = min(GameManager.player.max_hp, GameManager.player.hp + 1)
+			
 	var sprite_node = get_node_or_null("Sprite2D")
 	
 	if sprite_node:
@@ -130,8 +135,21 @@ func take_damage(amount, attack_type = "normal"):
 			
 	if hp <= 0:
 		is_dead = true
-		if is_instance_valid(GameManager.player):
-			var core_amount = 1
-			if enemy_type == 2: core_amount = 3
-			GameManager.player.add_item("monster_core", core_amount)
+		var core_amount = 1
+		if enemy_type == 2: core_amount = 3
+		
+		var dropped_item_scene = preload("res://scenes/dropped_item.tscn")
+		for i in range(core_amount):
+			var drop = dropped_item_scene.instantiate()
+			drop.global_position = global_position
+			drop.set("item_type", "monster_core")
+			get_tree().current_scene.add_child.call_deferred(drop)
+			
+		# 추가 자원 드랍 (20% 확률)
+		if randf() < 0.2:
+			var extra_drop = dropped_item_scene.instantiate()
+			extra_drop.global_position = global_position
+			extra_drop.set("item_type", "wood" if randf() < 0.5 else "stone")
+			get_tree().current_scene.add_child.call_deferred(extra_drop)
+			
 		queue_free()

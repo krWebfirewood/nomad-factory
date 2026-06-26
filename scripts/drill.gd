@@ -41,7 +41,7 @@ func mine_resources():
 	var res_type = FactoryManager.get_ore(tile_grid_pos)
 	if res_type != null:
 		# 타일에 자원이 있다면!
-		if is_instance_valid(GameManager.player):
+		if is_instance_valid(GameManager.player) and not GameManager.player.is_queued_for_deletion():
 			GameManager.player.add_item(res_type, 1)
 			
 			# 애니메이션 강하게 튕기기

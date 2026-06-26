@@ -6,6 +6,7 @@ var attack_timer = 0.0
 var attack_rate = 1.5 # 스나이퍼: 느림
 var projectile_scene = preload("res://scenes/projectile.tscn")
 var target_enemy = null
+var target_groups = ["enemy"]
 
 @onready var range_area = null
 @onready var sprite = null
@@ -36,18 +37,22 @@ func _process(delta):
 	attack_timer -= delta
 	if attack_timer <= 0:
 		if shoot():
-			attack_timer = attack_rate
+			attack_timer = attack_rate * GameManager.stat_firerate_mult
 	
 	if is_instance_valid(target_enemy):
 		var target_angle = (target_enemy.global_position - global_position).angle()
 		sprite.global_rotation = lerp_angle(sprite.global_rotation, target_angle, 15.0 * delta)
 
 func get_target_enemy():
-	var enemies = get_tree().get_nodes_in_group("enemy")
+	var targets = []
+	for g in target_groups:
+		targets.append_array(get_tree().get_nodes_in_group(g))
+		
 	var closest = null
-	var min_dist = 800.0 * GameManager.stat_range_mult # 스나이퍼 사거리 (화면 밖까지)
+	var min_dist = 800.0 * GameManager.stat_range_mult # 스나이퍼 사거리 (가장 김)
 	
-	for e in enemies:
+	for e in targets:
+		if e.get("is_dead") == true: continue
 		var dist = global_position.distance_to(e.global_position)
 		if dist <= min_dist:
 			min_dist = dist
@@ -59,6 +64,8 @@ func shoot() -> bool:
 		var proj = projectile_scene.instantiate()
 		proj.global_position = global_position
 		proj.direction = global_position.direction_to(target_enemy.global_position)
+		proj.visible = is_visible_in_tree()
+		if "target_groups" in proj: proj.target_groups = target_groups
 		
 		# 스나이퍼 프로젝타일 스탯 (추후 projectile.gd에서 지원하게 수정 필요, 임시로 속도/데미지 올리기)
 		if "speed" in proj: proj.speed = 800.0

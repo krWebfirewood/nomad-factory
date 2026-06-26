@@ -31,3 +31,27 @@ func get_world_grid_pos(global_pos: Vector2) -> Vector2i:
 
 func get_world_pos(grid_pos: Vector2i) -> Vector2:
 	return Vector2(grid_pos.x * TILE_SIZE, grid_pos.y * TILE_SIZE)
+
+func get_save_data() -> Dictionary:
+	var ores_data = []
+	for pos in ore_grid.keys():
+		ores_data.append({
+			"x": pos.x,
+			"y": pos.y,
+			"type": ore_grid[pos]
+		})
+	return {"ores": ores_data}
+
+func load_save_data(data: Dictionary):
+	ore_grid.clear()
+	grid.clear()
+	
+	if data.has("ores"):
+		for o in data["ores"]:
+			var pos = Vector2i(o["x"], o["y"])
+			var type = o["type"]
+			# GameManager를 통해 실제 노드를 맵에 생성
+			if GameManager.has_method("_spawn_ore"):
+				GameManager._spawn_ore(pos, type)
+			else:
+				register_ore(pos, type)

@@ -32,16 +32,32 @@ var attack_timer = 0.0
 var attack_rate = 0.5
 
 var hotbar_slots = []
+var hotbar_buttons = {}
 var position_history = []
 var max_history = 200
-var current_floor = 1
-var max_floor = 0
+
+var unlocked_towers = [1, 2, 3, 5, 6, 7, 8, 9, 10] # 4(레이저), 11(미사일) 잠김
+
+var active_relics = {
+	"vampire": false,
+	"overclock": false,
+	"orbital_strike": false
+}
+var orbital_cooldown = 0.0
+var overclock_timer = 0.0
+var is_overclocked = false
+var is_dead = false
+
+var pause_panel
 var floor_nodes = {}
 var floor_grids = {}
+var current_floor = 1
+var max_floor = 0
 
 var grid = {} # 호환성 유지를 위해 빈 딕셔너리로 남겨둠 (거의 사용 안함)
 var ui_canvas = null
 var new_inventory_label = null
+var cooldown_label = null
 var status_label = null
 var floor_label_ui = null
 
@@ -68,6 +84,7 @@ var moving_building = null
 var moving_grid_pos = Vector2i()
 
 func _ready():
+	add_to_group("player")
 	GameManager.player = self
 	
 	if has_node("UI"):
@@ -146,6 +163,12 @@ func _setup_ui():
 	new_inventory_label = Label.new()
 	new_inventory_label.position = Vector2(10, 10)
 	res_panel.add_child(new_inventory_label)
+	
+	cooldown_label = Label.new()
+	cooldown_label.position = Vector2(20, 180)
+	cooldown_label.add_theme_font_size_override("font_size", 18)
+	cooldown_label.add_theme_color_override("font_color", Color(1.0, 0.8, 0.2))
+	ui_canvas.add_child(cooldown_label)
 	
 	# 상단 중앙 넥서스/플레이어 상태
 	var status_panel = ColorRect.new()
@@ -266,9 +289,47 @@ func _setup_ui():
 		var btn = Button.new()
 		btn.text = names[i]
 		btn.custom_minimum_size = Vector2(110, 60)
-		# 람다 캡처 문제 해결을 위해 bind 사용
 		btn.pressed.connect(select_build_type.bind(type_ids[i], names[i]))
 		grid.add_child(btn)
+		hotbar_buttons[type_ids[i]] = btn
+		
+	update_hotbar_ui()
+		
+	# 일시정지(ESC) 메뉴 패널
+	pause_panel = ColorRect.new()
+	pause_panel.color = Color(0, 0, 0, 0.8)
+	pause_panel.size = get_viewport_rect().size
+	pause_panel.visible = false
+	pause_panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	ui_canvas.add_child(pause_panel)
+	
+	var continue_btn = Button.new()
+	continue_btn.text = "계속하기 (Continue)"
+	continue_btn.position = Vector2(vp_size.x/2 - 100, vp_size.y/2 - 120)
+	continue_btn.size = Vector2(200, 50)
+	continue_btn.pressed.connect(func(): toggle_pause())
+	pause_panel.add_child(continue_btn)
+	
+	var save_btn = Button.new()
+	save_btn.text = "게임 저장 (Save)"
+	save_btn.position = Vector2(vp_size.x/2 - 100, vp_size.y/2 - 50)
+	save_btn.size = Vector2(200, 50)
+	save_btn.pressed.connect(func(): GameManager.save_game())
+	pause_panel.add_child(save_btn)
+	
+	var load_btn = Button.new()
+	load_btn.text = "게임 불러오기 (Load)"
+	load_btn.position = Vector2(vp_size.x/2 - 100, vp_size.y/2 + 20)
+	load_btn.size = Vector2(200, 50)
+	load_btn.pressed.connect(func(): GameManager.load_game())
+	pause_panel.add_child(load_btn)
+	
+	var restart_btn = Button.new()
+	restart_btn.text = "재시작 (Restart)"
+	restart_btn.position = Vector2(vp_size.x/2 - 100, vp_size.y/2 + 90)
+	restart_btn.size = Vector2(200, 50)
+	restart_btn.pressed.connect(func(): GameManager.restart_game())
+	pause_panel.add_child(restart_btn)
 		
 	# 로그라이트 업그레이드 선택 패널
 	upgrade_card_panel = ColorRect.new()
@@ -347,6 +408,17 @@ func _setup_ui():
 		upg_buttons.append(btn)
 		
 	_update_upgrade_ui()
+
+func toggle_pause():
+	if not is_instance_valid(pause_panel): return
+	if upgrade_card_panel.visible: return # 업그레이드 중엔 무시
+	
+	if pause_panel.visible:
+		pause_panel.visible = false
+		get_tree().paused = false
+	else:
+		pause_panel.visible = true
+		get_tree().paused = true
 
 func _update_upgrade_ui():
 	if upg_buttons.size() == 0: return
@@ -441,7 +513,7 @@ func update_ui():
 		else:
 			boss_hp_panel.visible = false
 
-func take_damage(amount):
+func take_damage(amount, type="normal"):
 	hp -= amount
 	update_ui()
 	
@@ -455,13 +527,70 @@ func take_damage(amount):
 		game_over()
 
 func game_over():
+	if is_dead: return
+	is_dead = true
+	
 	print("=== GAME OVER (요새 파괴됨) ===")
+	
+	# 요새 파괴 시각적 이펙트
+	add_camera_shake(100.0)
+	
+	for i in range(15):
+		var effect = ColorRect.new()
+		effect.color = Color(1.0, randf_range(0.2, 0.5), 0.0, 0.8)
+		var size_val = randf_range(100, 400)
+		effect.size = Vector2(size_val, size_val)
+		var offset = Vector2(randf_range(-150, 150), randf_range(-150, 150))
+		effect.position = global_position + offset - effect.size / 2.0
+		get_tree().current_scene.add_child.call_deferred(effect)
+		
+		var tween = get_tree().create_tween()
+		tween.tween_interval(randf_range(0.0, 0.5))
+		tween.tween_property(effect, "color:a", 0.0, 0.8)
+		tween.tween_callback(effect.queue_free)
+		
+	# 약간 딜레이 후 게임 일시정지
+	await get_tree().create_timer(1.0).timeout
+	
 	get_tree().paused = true
 	if is_instance_valid(status_label):
 		status_label.text = "GAME OVER!\n이동 요새가 파괴되었습니다."
 		status_label.modulate = Color(1, 0, 0)
 
 func _process(delta):
+	if get_tree().paused: return
+	
+	if orbital_cooldown > 0:
+		orbital_cooldown -= delta
+		
+	if active_relics.get("overclock"):
+		overclock_timer += delta
+		if overclock_timer > 15.0:
+			if not is_overclocked:
+				is_overclocked = true
+				GameManager.stat_firerate_mult *= 0.5 # 2배 빨라짐
+				# 임시 이펙트: 요새 붉은색 깜빡임
+				modulate = Color(2, 1, 1)
+			if overclock_timer > 18.0:
+				overclock_timer = 0.0
+				is_overclocked = false
+				GameManager.stat_firerate_mult /= 0.5
+				modulate = Color(1, 1, 1)
+				
+	if is_instance_valid(cooldown_label):
+		var cd_text = ""
+		if boost_cooldown > 0:
+			cd_text += "대쉬 쿨타임: " + str(snapped(boost_cooldown, 0.1)) + "초\n"
+		else:
+			cd_text += "[대쉬 준비 완료] (Space)\n"
+			
+		if active_relics.get("orbital_strike"):
+			if orbital_cooldown > 0:
+				cd_text += "궤도 폭격 쿨타임: " + str(snapped(orbital_cooldown, 0.1)) + "초\n"
+			else:
+				cd_text += "[궤도 폭격 준비 완료] (F키)\n"
+		cooldown_label.text = cd_text
+	
 	# 카메라 쉐이크 처리
 	if has_node("Camera2D"):
 		if shake_intensity > 0:
@@ -472,6 +601,7 @@ func _process(delta):
 				$Camera2D.offset = Vector2.ZERO
 
 func _physics_process(delta):
+	if get_tree().paused: return
 	_process_movement(delta)
 
 func _process_movement(delta):
@@ -522,24 +652,29 @@ func _process_movement(delta):
 	attack_timer -= delta
 	if attack_timer <= 0:
 		auto_attack()
-		attack_timer = attack_rate
 
 func auto_attack():
-	var enemies = get_tree().get_nodes_in_group("enemy")
-	var closest_enemy = null
-	var min_dist = 500.0 # 최대 사거리
+	var targets = get_tree().get_nodes_in_group("enemy")
+	targets.append_array(get_tree().get_nodes_in_group("rival"))
+	var target = null
+	var min_dist = 400.0 * GameManager.stat_range_mult
 	
-	for e in enemies:
+	for e in targets:
+		if e.get("is_dead") == true: continue
 		var dist = global_position.distance_to(e.global_position)
-		if dist < min_dist:
+		if dist <= min_dist:
 			min_dist = dist
-			closest_enemy = e
+			target = e
 			
-	if closest_enemy:
-		var proj = projectile_scene.instantiate()
+	if is_instance_valid(target):
+		var proj = preload("res://scenes/projectile.tscn").instantiate()
 		proj.global_position = global_position
-		proj.direction = global_position.direction_to(closest_enemy.global_position)
+		proj.direction = global_position.direction_to(target.global_position)
+		proj.damage = 10.0 + (GameManager.stat_damage_mult * 5.0)
+		proj.attack_type = "kinetic"
+		proj.target_groups = ["enemy", "rival"]
 		get_parent().add_child(proj)
+		attack_timer = attack_rate
 
 func _unhandled_input(event):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
@@ -559,16 +694,25 @@ func _unhandled_input(event):
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_1: select_build_type(1, "1:기관총")
 		elif event.keycode == KEY_2: select_build_type(2, "2:스나이퍼")
-		elif event.keycode == KEY_3: select_build_type(3, "3:샷건")
-		elif event.keycode == KEY_4: select_build_type(4, "4:레이저")
+		elif event.keycode == KEY_MINUS: select_build_type(11, "-:미사일")
+		
+		# 궤도 폭격 스킬
+		elif event.keycode == KEY_F and active_relics.get("orbital_strike"):
+			if orbital_cooldown <= 0:
+				cast_orbital_strike()
+			else:
+				print("궤도 폭격 쿨타임 중: ", snapped(orbital_cooldown, 0.1), "초")
+				
+		elif event.keycode == KEY_ESCAPE: select_build_type(0, "현재 선택: 없음")
 		elif event.keycode == KEY_5: select_build_type(5, "5:방벽")
 		elif event.keycode == KEY_6: select_build_type(6, "6:수리소")
 		elif event.keycode == KEY_7: select_build_type(7, "7:드릴")
 		elif event.keycode == KEY_8: select_build_type(8, "8:공급기")
 		elif event.keycode == KEY_9: select_build_type(9, "9:벨트")
+		elif event.keycode == KEY_3: select_build_type(3, "3:샷건")
+		elif event.keycode == KEY_4: select_build_type(4, "4:레이저")
 		elif event.keycode == KEY_0: select_build_type(10, "0:가공소")
-		elif event.keycode == KEY_MINUS: select_build_type(11, "-:미사일(폭발형)")
-		elif event.keycode == KEY_ESCAPE: select_build_type(0, "현재 선택: 없음")
+		
 		elif event.keycode == KEY_U:
 			upgrade_panel.visible = not upgrade_panel.visible
 		elif event.keycode == KEY_R:
@@ -591,10 +735,30 @@ func toggle_build_menu():
 	if is_instance_valid(build_menu_panel):
 		build_menu_panel.visible = not build_menu_panel.visible
 
-func select_build_type(type: int, name: String):
-	set_build_type(type)
+func update_hotbar_ui():
+	var names = {
+		1: "1:기관총\n(나무5,돌5)", 2: "2:스나이퍼\n(돌15)", 3: "3:샷건\n(나무15)",
+		4: "4:레이저\n(강철10,코어5)", 5: "5:방벽\n(돌10)", 6: "6:수리소\n(나무20,돌10)",
+		7: "7:드릴\n(돌20,코어10)", 8: "8:공급기\n(나무5,돌5)", 9: "9:벨트\n(나무2)",
+		10: "0:가공소\n(돌15,코어2)", 11: "-:미사일\n(강철5,코어10)"
+	}
+	for tid in hotbar_buttons.keys():
+		var btn = hotbar_buttons[tid]
+		if tid in unlocked_towers:
+			btn.disabled = false
+			btn.text = names[tid]
+		else:
+			btn.disabled = true
+			btn.text = "[잠김]\n" + names[tid].split(":")[1]
+
+func select_build_type(type_id: int, b_name: String):
+	if not type_id in unlocked_towers:
+		print("아직 해금되지 않은 타워입니다!")
+		return
+		
+	set_build_type(type_id)
 	if is_instance_valid(active_build_label):
-		active_build_label.text = "현재 선택: " + name
+		active_build_label.text = "현재 선택: " + b_name
 	if is_instance_valid(build_menu_panel):
 		build_menu_panel.visible = false
 
@@ -795,7 +959,7 @@ func handle_building():
 				var b_names = ["", "기관총", "스나이퍼", "샷건", "레이저", "방벽", "수리소", "드릴", "공급기", "벨트", "가공소", "미사일"]
 				if build_type > 0 and build_type < b_names.size():
 					building.set_meta("b_name", b_names[build_type])
-				
+				if "target_groups" in building: building.target_groups = ["enemy", "rival"]
 				building.position = local_pos
 				
 				if build_direction == Vector2i.RIGHT: building.rotation = 0
@@ -918,13 +1082,23 @@ func show_upgrade_selection():
 	upgrade_card_panel.add_child(hbox)
 	
 	var all_options = [
-		{"id": "floor", "title": "[구조물] 층 증축", "desc": "요새의 층수를 1층 올립니다.\n디메리트: 기본 이동 속도 15% 감소"},
-		{"id": "speed", "title": "[기동성] 엔진 오버클럭", "desc": "요새의 기본 이동 속도가 20% 증가합니다."},
 		{"id": "hp", "title": "[방어] 티타늄 장갑", "desc": "요새의 최대 HP가 300 증가하고,\n현재 HP를 300 회복합니다."},
 		{"id": "range", "title": "[화력] 고급 조준경", "desc": "모든 공격 타워의 사거리가 20% 증가합니다."},
 		{"id": "damage", "title": "[화력] 철갑탄", "desc": "모든 공격 타워의 데미지가 20% 증가합니다."},
 		{"id": "drill", "title": "[생산] 초정밀 드릴", "desc": "드릴의 자원 채굴 속도가 20% 빨라집니다."}
 	]
+	
+	if not 4 in unlocked_towers:
+		all_options.append({"id": "unlock_laser", "title": "[해금] 레이저 타워", "desc": "적을 관통하는 강력한 레이저 타워 건설법을 해금합니다."})
+	if not 11 in unlocked_towers:
+		all_options.append({"id": "unlock_missile", "title": "[해금] 미사일 타워", "desc": "폭발성 미사일을 발사하는 타워 건설법을 해금합니다."})
+		
+	if not active_relics.get("vampire"):
+		all_options.append({"id": "relic_vampire", "title": "[유물] 흡혈 코어", "desc": "모든 타워가 적을 공격할 때마다 5% 확률로 요새 체력을 1 회복합니다."})
+	if not active_relics.get("overclock"):
+		all_options.append({"id": "relic_overclock", "title": "[유물] 과부하 모듈", "desc": "요새가 15초마다 3초 동안 타워 공격 속도가 폭주합니다."})
+	if not active_relics.get("orbital_strike"):
+		all_options.append({"id": "skill_orbital", "title": "[스킬] 궤도 폭격", "desc": "단축키 F를 눌러 마우스 커서 위치에 강력한 폭격을 가합니다. (쿨타임 15초)"})
 	
 	all_options.shuffle()
 	var selected = all_options.slice(0, 3)
@@ -958,12 +1132,7 @@ func show_upgrade_selection():
 		hbox.add_child(card)
 
 func _apply_upgrade(id: String):
-	if id == "floor":
-		add_floor()
-		GameManager.stat_speed_mult *= 0.85
-	elif id == "speed":
-		GameManager.stat_speed_mult *= 1.2
-	elif id == "hp":
+	if id == "hp":
 		max_hp += 300
 		hp += 300
 	elif id == "range":
@@ -971,7 +1140,19 @@ func _apply_upgrade(id: String):
 	elif id == "damage":
 		GameManager.stat_damage_mult *= 1.2
 	elif id == "drill":
-		GameManager.stat_drill_mult *= 0.8 # 간격이 줄어야 빨라짐
+		GameManager.stat_drill_mult *= 0.8
+	elif id == "unlock_laser":
+		unlocked_towers.append(4)
+		update_hotbar_ui()
+	elif id == "unlock_missile":
+		unlocked_towers.append(11)
+		update_hotbar_ui()
+	elif id == "relic_vampire":
+		active_relics["vampire"] = true
+	elif id == "relic_overclock":
+		active_relics["overclock"] = true
+	elif id == "skill_orbital":
+		active_relics["orbital_strike"] = true
 		
 	base_speed = 100.0 * GameManager.stat_speed_mult
 	
@@ -1037,8 +1218,65 @@ func _on_btn_upgrade():
 		add_item("monster_core", -cost_core)
 		selected_building.set_meta("level", b_level + 1)
 		open_context_ui(selected_building, true)
+		
+		# 시각적 피드백 (Floating Text)
+		var label = Label.new()
+		label.text = "Level UP!"
+		label.global_position = selected_building.global_position + Vector2(-30, -30)
+		var settings = LabelSettings.new()
+		settings.font_color = Color(1.0, 0.8, 0.2)
+		settings.outline_size = 4
+		settings.outline_color = Color(0, 0, 0)
+		settings.font_size = 18
+		label.label_settings = settings
+		label.z_index = 100
+		get_tree().current_scene.add_child(label)
+		
+		var tween = label.create_tween()
+		tween.tween_property(label, "global_position", label.global_position + Vector2(0, -40), 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.parallel().tween_property(label, "modulate", Color(1, 1, 1, 0), 1.0)
+		tween.tween_callback(func(): label.queue_free())
+		
 	else:
 		print("코어가 부족합니다!")
+
+func _on_timer_timeout():
+	pass
+
+func cast_orbital_strike():
+	orbital_cooldown = 15.0
+	var mouse_world_pos = get_global_mouse_position()
+	
+	add_camera_shake(50.0)
+	print("궤도 폭격 발사!")
+	
+	# 궤도 폭격 이펙트 (노란 섬광)
+	var effect = ColorRect.new()
+	effect.color = Color(1.0, 0.5, 0.1, 0.6)
+	effect.size = Vector2(600, 600)
+	effect.position = mouse_world_pos - effect.size / 2.0
+	get_tree().current_scene.add_child(effect)
+	
+	var tween = get_tree().create_tween()
+	tween.tween_property(effect, "color:a", 0.0, 0.5)
+	tween.tween_callback(effect.queue_free)
+	
+	# 범위 내 적 데미지
+	var enemies = get_tree().get_nodes_in_group("enemy")
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			var dist = enemy.global_position.distance_to(mouse_world_pos)
+			if dist <= 300.0:
+				if enemy.has_method("take_damage"):
+					enemy.take_damage(800.0 * GameManager.stat_damage_mult, "explosive")
+					
+	var bosses = get_tree().get_nodes_in_group("boss")
+	for boss in bosses:
+		if is_instance_valid(boss):
+			var dist = boss.global_position.distance_to(mouse_world_pos)
+			if dist <= 350.0:
+				if boss.has_method("take_damage"):
+					boss.take_damage(800.0 * GameManager.stat_damage_mult, "explosive")
 
 func _on_btn_move():
 	if not is_instance_valid(selected_building): return
@@ -1070,3 +1308,117 @@ func _on_btn_demolish():
 func _on_filter_selected(index):
 	if is_instance_valid(selected_building) and selected_building.get_meta("b_name") == "공급기":
 		selected_building.set_meta("filter_idx", index)
+
+func get_save_data() -> Dictionary:
+	var data = {
+		"hp": hp,
+		"pos_x": global_position.x,
+		"pos_y": global_position.y,
+		"inventory": inventory.duplicate(),
+		"unlocked_towers": unlocked_towers.duplicate(),
+		"active_relics": active_relics.duplicate(),
+		"floor_grids": {}
+	}
+	
+	for f in floor_grids.keys():
+		var fg_data = []
+		for pos in floor_grids[f].keys():
+			var b = floor_grids[f][pos]
+			var b_data = {
+				"x": pos.x,
+				"y": pos.y,
+				"type": b.get_meta("build_type_id", 1),
+				"level": b.get_meta("level", 1)
+			}
+			if "direction" in b:
+				if b.direction == Vector2i.RIGHT: b_data["dir"] = 1
+				elif b.direction == Vector2i.LEFT: b_data["dir"] = -1
+				elif b.direction == Vector2i.DOWN: b_data["dir"] = 2
+				elif b.direction == Vector2i.UP: b_data["dir"] = -2
+			fg_data.append(b_data)
+		data["floor_grids"][str(f)] = fg_data
+		
+	return data
+
+func clear_buildings():
+	for f in floor_grids.keys():
+		for pos in floor_grids[f].keys():
+			var b = floor_grids[f][pos]
+			if is_instance_valid(b): b.queue_free()
+		floor_grids[f].clear()
+
+func load_save_data(data: Dictionary):
+	hp = data.get("hp", max_hp)
+	global_position = Vector2(data.get("pos_x", 0), data.get("pos_y", 0))
+	inventory = data.get("inventory", {})
+	if data.has("unlocked_towers"):
+		unlocked_towers = data["unlocked_towers"]
+	if data.has("active_relics"):
+		active_relics = data["active_relics"]
+	update_ui()
+	update_hotbar_ui()
+	
+	if data.has("floor_grids"):
+		var fg_data = data["floor_grids"]
+		for f_str in fg_data.keys():
+			var f = int(f_str)
+			if not floor_grids.has(f): floor_grids[f] = {}
+			for b_data in fg_data[f_str]:
+				var pos = Vector2i(b_data["x"], b_data["y"])
+				var b_type = b_data["type"]
+				var b_level = b_data.get("level", 1)
+				
+				var build_direction = Vector2i.RIGHT
+				if b_data.has("dir"):
+					var d = b_data["dir"]
+					if d == 1: build_direction = Vector2i.RIGHT
+					elif d == -1: build_direction = Vector2i.LEFT
+					elif d == 2: build_direction = Vector2i.DOWN
+					elif d == -2: build_direction = Vector2i.UP
+					
+				var building = instantiate_building(b_type)
+				if building:
+					building.grid_pos = pos
+					if "direction" in building: building.direction = build_direction
+					if "floor_index" in building: building.floor_index = f
+					
+					building.set_meta("level", b_level)
+					building.set_meta("build_type_id", b_type)
+					var b_names = ["", "기관총", "스나이퍼", "샷건", "레이저", "방벽", "수리소", "드릴", "공급기", "벨트", "가공소", "미사일"]
+					if b_type > 0 and b_type < b_names.size():
+						building.set_meta("b_name", b_names[b_type])
+						
+					if "target_groups" in building: building.target_groups = ["enemy", "rival"]
+					
+					building.position = Vector2(pos.x * 64, pos.y * 64)
+					if build_direction == Vector2i.RIGHT: building.rotation = 0
+					elif build_direction == Vector2i.DOWN: building.rotation = PI/2
+					elif build_direction == Vector2i.LEFT: building.rotation = PI
+					elif build_direction == Vector2i.UP: building.rotation = -PI/2
+					
+					get_parent().add_child(building)
+					floor_grids[f][pos] = building
+					
+					# 렌더링 노드 분기
+					if not floor_nodes.has(f):
+						var fn = Node2D.new()
+						get_parent().add_child(fn)
+						floor_nodes[f] = fn
+						
+					building.get_parent().remove_child(building)
+					floor_nodes[f].add_child(building)
+
+func instantiate_building(b_type: int) -> Node2D:
+	var building = null
+	if b_type == 1: building = preload("res://scenes/turret.tscn").instantiate()
+	elif b_type == 2: building = preload("res://scripts/sniper_turret.gd").new()
+	elif b_type == 3: building = preload("res://scripts/shotgun_turret.gd").new()
+	elif b_type == 4: building = preload("res://scripts/laser_turret.gd").new()
+	elif b_type == 5: building = preload("res://scripts/barricade.gd").new()
+	elif b_type == 6: building = preload("res://scripts/repair_station.gd").new()
+	elif b_type == 7: building = preload("res://scripts/drill.gd").new()
+	elif b_type == 8: building = preload("res://scripts/provider.gd").new()
+	elif b_type == 9: building = preload("res://scripts/belt.gd").new()
+	elif b_type == 10: building = preload("res://scripts/processor.gd").new()
+	elif b_type == 11: building = preload("res://scripts/missile_turret.gd").new()
+	return building

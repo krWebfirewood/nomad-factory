@@ -7,6 +7,7 @@ var floor_index = 1
 var attack_timer = 0.0
 var attack_rate = 0.25 # 너무 빠르면 잡몹을 다 지워버리므로 약간 낮춤
 var target_enemy = null
+var target_groups = ["enemy"]
 
 @onready var sprite = null
 @onready var laser_beam = null
@@ -53,7 +54,7 @@ func _process(delta):
 		laser_beam.global_position = global_position + Vector2(40, -2).rotated(sprite.global_rotation)
 		laser_beam.rotation = sprite.global_rotation
 		laser_beam.size.x = dist - 40
-		laser_beam.visible = true
+		laser_beam.visible = is_visible_in_tree()
 		
 		attack_timer -= delta
 		if attack_timer <= 0:
@@ -61,9 +62,9 @@ func _process(delta):
 			if abs(angle_difference(sprite.global_rotation, target_angle)) < 0.2:
 				if target_enemy.has_method("take_damage"):
 					var level = get_meta("level") if has_meta("level") else 1
-					var dmg = (12.0 + (level - 1) * 4.0 + (GameManager.upg_turret_damage_level * 4.0)) * GameManager.stat_damage_mult
+					var dmg = (5.0 + (level - 1) * 2.0 + (GameManager.upg_turret_damage_level * 2)) * GameManager.stat_damage_mult
 					target_enemy.take_damage(dmg, "energy")
-			attack_timer = attack_rate
+			attack_timer = attack_rate * GameManager.stat_firerate_mult
 	else:
 		laser_beam.visible = false
 
@@ -72,11 +73,15 @@ func _exit_tree():
 		laser_beam.queue_free()
 
 func get_target_enemy():
-	var enemies = get_tree().get_nodes_in_group("enemy")
+	var targets = []
+	for g in target_groups:
+		targets.append_array(get_tree().get_nodes_in_group(g))
+		
 	var closest = null
-	var min_dist = 600.0 * GameManager.stat_range_mult # 레이저 사거리
+	var min_dist = 400.0 * GameManager.stat_range_mult # 레이저 사거리
 	
-	for e in enemies:
+	for e in targets:
+		if e.get("is_dead") == true: continue
 		var dist = global_position.distance_to(e.global_position)
 		if dist <= min_dist:
 			min_dist = dist

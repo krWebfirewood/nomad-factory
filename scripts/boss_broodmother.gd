@@ -26,14 +26,42 @@ func _ready():
 	shape.shape = circle_shape
 	add_child(shape)
 	
+	GameManager.boss = self
+	
 	sprite = Node2D.new()
 	add_child(sprite)
 	
+	# 거미 형태의 다리들
+	for i in range(4):
+		for side in [-1, 1]:
+			var leg = ColorRect.new()
+			leg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			leg.size = Vector2(60, 12)
+			leg.position = Vector2(0, -6)
+			
+			var leg_node = Node2D.new()
+			leg_node.position = Vector2((i - 1.5) * 20, side * 30)
+			var angle = (PI/6 + (i * PI/12)) * side
+			leg_node.rotation = angle
+			
+			leg_node.add_child(leg)
+			sprite.add_child(leg_node)
+	
+	# 본체
 	var body = ColorRect.new()
-	body.size = Vector2(140, 140)
-	body.position = Vector2(-70, -70)
-	body.color = Color(0.2, 0.8, 0.2) # 밝은 초록색 독거미 느낌
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	body.size = Vector2(100, 140)
+	body.position = Vector2(-50, -70)
+	body.color = Color(0.2, 0.5, 0.2) # 짙은 녹색 군단장
 	sprite.add_child(body)
+	
+	# 머리/턱
+	var head = ColorRect.new()
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.size = Vector2(40, 40)
+	head.position = Vector2(50, -20)
+	head.color = Color(0.1, 0.3, 0.1)
+	sprite.add_child(head)
 
 func setup(wave: int):
 	wave_level = wave
@@ -97,10 +125,44 @@ func die():
 	if is_dead: return
 	is_dead = true
 	
+	# 도파민 폭발 연출: 슬로우 모션 및 카메라 쉐이크
+	Engine.time_scale = 0.2
+	if is_instance_valid(GameManager.player):
+		if GameManager.player.has_method("add_camera_shake"):
+			GameManager.player.add_camera_shake(30.0)
+			
+	# 폭발 깜빡임 이펙트
+	for i in range(10):
+		if is_instance_valid(sprite):
+			sprite.modulate = Color(10, 10, 10) if i % 2 == 0 else Color(1, 0, 0)
+		await get_tree().create_timer(0.1 * Engine.time_scale).timeout
+		
+	Engine.time_scale = 1.0
+	
+	var dropped_scene = preload("res://scenes/dropped_item.tscn")
+	var drop_count = randi_range(30, 50)
+	for i in range(drop_count):
+		var item = dropped_scene.instantiate()
+		item.global_position = global_position + Vector2(randf_range(-10, 10), randf_range(-10, 10))
+		item.set("item_type", "monster_core")
+		get_tree().current_scene.add_child(item)
+		
+	var mat_drop_count = randi_range(15, 25)
+	for i in range(mat_drop_count):
+		var item = dropped_scene.instantiate()
+		item.global_position = global_position + Vector2(randf_range(-20, 20), randf_range(-20, 20))
+		var r = randf()
+		var advanced_chance = min(0.5, wave_level * 0.05)
+		if r < advanced_chance:
+			item.set("item_type", "steel_plate")
+		else:
+			item.set("item_type", "wood" if randf() < 0.5 else "stone")
+		get_tree().current_scene.add_child(item)
+	
 	if is_instance_valid(GameManager.player):
 		if GameManager.player.has_method("show_upgrade_selection"):
 			GameManager.player.show_upgrade_selection()
-		GameManager.player.add_item("monster_core", 60)
-		GameManager.player.add_item("wood", 50)
 			
 	queue_free()
+
+

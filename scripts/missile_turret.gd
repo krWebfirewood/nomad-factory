@@ -37,8 +37,8 @@ func _process(delta):
 		
 		attack_timer -= delta
 		if attack_timer <= 0:
-			shoot()
-			attack_timer = attack_rate
+			if shoot():
+				attack_timer = attack_rate * GameManager.stat_firerate_mult
 
 func get_target_enemy():
 	var enemies = get_tree().get_nodes_in_group("enemy")
@@ -59,6 +59,7 @@ func shoot():
 	var proj = script.new()
 	proj.global_position = global_position
 	proj.direction = global_position.direction_to(target_enemy.global_position)
+	proj.visible = is_visible_in_tree()
 	var level = get_meta("level") if has_meta("level") else 1
 	if "damage" in proj: proj.damage = 25.0 + (level - 1) * 10.0
 	get_tree().current_scene.add_child(proj)
