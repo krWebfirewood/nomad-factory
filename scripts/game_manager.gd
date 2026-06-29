@@ -15,10 +15,16 @@ var _base_spawn_rate = 2.0 # 초반에는 2초에 한 마리씩 천천히
 var nexus_setup_timer = 60.0
 var nexus_placed = false
 
-# 업그레이드 레벨 변수 (기존)
+# 업그레이드 레벨 변수 (기존, 인게임용)
 var upg_miner_speed_level = 0
 var upg_turret_damage_level = 0
 var upg_player_hp_level = 0
+
+# 메타 프로그레션 (영구 강화) 데이터
+var total_cores = 0
+var meta_hp_level = 0
+var meta_damage_level = 0
+var meta_speed_level = 0
 
 # 로그라이트 보스 보상 스탯 배율 (퍼센트 계수)
 var stat_speed_mult = 1.0       # 이동 속도
@@ -29,6 +35,7 @@ var stat_firerate_mult = 1.0    # 공격 속도 배율
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	load_meta_data()
 
 func _unhandled_input(event):
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
@@ -50,6 +57,7 @@ var initial_rival_spawned = false
 func _process(delta):
 	if get_tree().paused: return
 	if not is_instance_valid(get_tree().current_scene): return
+	if get_tree().current_scene.name == "TitleScreen": return
 	
 	game_time += delta
 	var new_wave = int(game_time / 30.0) + 1
@@ -137,7 +145,7 @@ func spawn_rival():
 	get_tree().current_scene.add_child(rival)
 	print("중립 이동 요새(Rival)가 스폰되었습니다!")
 
-func restart_game():
+func reset_state():
 	game_time = 0.0
 	current_wave = 1
 	last_boss_wave = 0
@@ -154,8 +162,55 @@ func restart_game():
 	stat_drill_mult = 1.0
 	stat_firerate_mult = 1.0
 	
+	FactoryManager.grid.clear()
+	FactoryManager.ore_grid.clear()
+	
 	get_tree().paused = false
+
+func restart_game():
+	reset_state()
 	get_tree().reload_current_scene()
+
+func start_new_game():
+	reset_state()
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+func apply_meta_upgrades():
+	# 메타 업그레이드를 인게임 스탯 배율에 반영
+	stat_damage_mult = 1.0 + (meta_damage_level * 0.1)
+	stat_speed_mult = 1.0 + (meta_speed_level * 0.05)
+	
+	if is_instance_valid(player):
+		player.max_hp = 500.0 + (meta_hp_level * 100.0)
+		player.hp = player.max_hp
+
+func save_meta_data():
+	var meta_data = {
+		"total_cores": total_cores,
+		"meta_hp_level": meta_hp_level,
+		"meta_damage_level": meta_damage_level,
+		"meta_speed_level": meta_speed_level
+	}
+	var file = FileAccess.open("user://meta_data.json", FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(meta_data))
+		file.close()
+		print("메타 데이터 저장 완료!")
+
+func load_meta_data():
+	var file = FileAccess.open("user://meta_data.json", FileAccess.READ)
+	if not file: return
+	var json_string = file.get_as_text()
+	file.close()
+	
+	var json = JSON.new()
+	if json.parse(json_string) == OK:
+		var data = json.data
+		total_cores = data.get("total_cores", 0)
+		meta_hp_level = data.get("meta_hp_level", 0)
+		meta_damage_level = data.get("meta_damage_level", 0)
+		meta_speed_level = data.get("meta_speed_level", 0)
+		print("메타 데이터 로드 완료! 누적 코어: ", total_cores)
 
 func save_game():
 	var save_data = {}

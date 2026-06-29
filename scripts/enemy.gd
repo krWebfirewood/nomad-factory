@@ -81,6 +81,11 @@ func _physics_process(delta):
 				exploded = true
 				queue_free()
 				break
+			elif collider.has_method("gather"):
+				collider.gather(self)
+
+func add_item(item_name: String, amount: int):
+	pass
 
 func shoot_projectile(dir: Vector2):
 	var proj_script = preload("res://scripts/enemy_projectile.gd")

@@ -30,12 +30,13 @@ func _ready():
 	sprite.add_child(cross2)
 
 func _process(delta):
-	heal_timer -= delta
-	if heal_timer <= 0:
-		heal_timer = 1.0
-		var parent = GameManager.player
-		if is_instance_valid(parent) and "hp" in parent and "max_hp" in parent:
-			if parent.hp < parent.max_hp:
-				parent.hp = min(parent.hp + heal_amount, parent.max_hp)
-				if parent.has_method("queue_redraw"):
-					parent.queue_redraw()
+	var parent = GameManager.player
+	if is_instance_valid(parent) and not parent.get("is_dead", false):
+		heal_timer -= delta
+		if heal_timer <= 0:
+			heal_timer = 1.0
+			if "hp" in parent and "max_hp" in parent:
+				if parent.hp < parent.max_hp:
+					parent.hp = min(parent.hp + heal_amount, parent.max_hp)
+					if parent.has_method("queue_redraw"):
+						parent.queue_redraw()

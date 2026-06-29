@@ -81,8 +81,12 @@ func _physics_process(delta):
 	for i in get_slide_collision_count():
 		var collision = get_slide_collision(i)
 		var collider = collision.get_collider()
-		if collider != null and collider.has_method("gather"):
-			collider.gather(self)
+		if collider != null:
+			if collider.has_method("gather"):
+				collider.gather(self)
+			elif collider.is_in_group("player") or collider.is_in_group("trailer"):
+				if collider.has_method("take_damage"):
+					collider.take_damage(50.0 * delta)
 			
 	try_build()
 

@@ -86,6 +86,7 @@ var moving_grid_pos = Vector2i()
 func _ready():
 	add_to_group("player")
 	GameManager.player = self
+	GameManager.apply_meta_upgrades()
 	
 	if has_node("UI"):
 		$UI.queue_free()
@@ -535,6 +536,8 @@ func game_over():
 	# 요새 파괴 시각적 이펙트
 	add_camera_shake(100.0)
 	
+	get_tree().paused = true # 죽는 순간 화면 정지 및 포탑 작동 중지
+	
 	for i in range(15):
 		var effect = ColorRect.new()
 		effect.color = Color(1.0, randf_range(0.2, 0.5), 0.0, 0.8)
@@ -549,13 +552,21 @@ func game_over():
 		tween.tween_property(effect, "color:a", 0.0, 0.8)
 		tween.tween_callback(effect.queue_free)
 		
-	# 약간 딜레이 후 게임 일시정지
-	await get_tree().create_timer(1.0).timeout
+	# 약간 딜레이
+	await get_tree().create_timer(1.0, true, false, true).timeout
 	
-	get_tree().paused = true
 	if is_instance_valid(status_label):
 		status_label.text = "GAME OVER!\n이동 요새가 파괴되었습니다."
 		status_label.modulate = Color(1, 0, 0)
+		
+	var final_core_count = inventory.get("monster_core", 0)
+	GameManager.total_cores += final_core_count
+	GameManager.save_meta_data()
+	
+	await get_tree().create_timer(2.0, true, false, true).timeout
+	
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/title_screen.tscn")
 
 func _process(delta):
 	if get_tree().paused: return

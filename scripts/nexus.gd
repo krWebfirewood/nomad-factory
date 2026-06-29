@@ -34,6 +34,19 @@ func game_over():
 	if is_instance_valid(hp_label):
 		hp_label.text = "GAME OVER!"
 		hp_label.modulate = Color(1, 0, 0)
+		
+	# 코어 누적 및 저장
+	if is_instance_valid(GameManager.player):
+		var final_core_count = GameManager.player.inventory.get("monster_core", 0) if "inventory" in GameManager.player else 0
+		GameManager.total_cores += final_core_count
+		print("획득한 코어: ", final_core_count, " / 총 코어: ", GameManager.total_cores)
+	
+	GameManager.save_meta_data()
+	
+	await get_tree().create_timer(2.0, true, false, true).timeout
+	
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/title_screen.tscn")
 
 func accept_item(item) -> bool:
 	if is_instance_valid(GameManager.player) and not GameManager.player.is_queued_for_deletion():
