@@ -14,6 +14,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create Export Directory
+        run: mkdir -p ./build/Web
+
       - name: Export Godot
         uses: firebelley/godot-export@v5.2.1
         with:
