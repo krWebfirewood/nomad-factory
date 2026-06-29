@@ -23,9 +23,9 @@ func _process(_delta):
 			int(floor(float(player_grid_pos.y) / chunk_size))
 		)
 		
-		# 플레이어 주변 3x3 청크 로드
-		for cx in range(center_chunk.x - 1, center_chunk.x + 2):
-			for cy in range(center_chunk.y - 1, center_chunk.y + 2):
+		# 플레이어 주변 7x5 청크 로드 (해상도 증가에 대응)
+		for cx in range(center_chunk.x - 3, center_chunk.x + 4):
+			for cy in range(center_chunk.y - 2, center_chunk.y + 3):
 				var chunk_pos = Vector2i(cx, cy)
 				if not loaded_chunks.has(chunk_pos):
 					_load_chunk(chunk_pos)
