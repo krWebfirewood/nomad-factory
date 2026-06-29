@@ -502,7 +502,7 @@ func update_ui():
 		new_inventory_label.text = "나무: " + str(wood_count) + "\n돌: " + str(stone_count) + "\n철광석(Iron): " + str(iron_count) + "\n강철 판재(Steel): " + str(steel_count) + "\n석재 벽돌: " + str(brick_count) + "\n몬스터 코어: " + str(core_count)
 		
 	if is_instance_valid(status_label):
-		var s = "이동 요새 HP: " + str(max(0, hp)) + " / " + str(max_hp) + "\n"
+		var s = "이동 요새 HP: " + str(ceil(max(0, hp))) + " / " + str(ceil(max_hp)) + "\n"
 		s += "웨이브 " + str(GameManager.current_wave) + " 진행 중!"
 		status_label.text = s
 		

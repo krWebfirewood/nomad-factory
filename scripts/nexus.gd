@@ -26,7 +26,7 @@ func take_damage(amount):
 
 func update_ui():
 	if is_instance_valid(hp_label):
-		hp_label.text = "NEXUS HP: " + str(max(0, hp))
+		hp_label.text = "NEXUS HP: " + str(ceil(max(0, hp)))
 
 func game_over():
 	print("=== GAME OVER ===")
