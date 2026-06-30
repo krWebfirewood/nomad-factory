@@ -35,6 +35,9 @@ var joystick_touch_id = -1
 var joystick_vector = Vector2.ZERO
 var joystick_center = Vector2.ZERO
 var build_pressed_this_frame = false
+var mobile_action_btn = null
+var btn_dash = null
+var btn_orbital = null
 
 var attack_timer = 0.0
 var attack_rate = 0.5
@@ -110,23 +113,45 @@ func create_mobile_ui():
 	# floor_panel이 vp_size.x - 120 에 있으므로, 안 겹치게 더 왼쪽으로 이동
 	var right_margin = vp_size.x - 220
 	var bottom_margin = vp_size.y - 100
+	mobile_action_btn = Button.new()
+	mobile_action_btn.text = "건설"
+	mobile_action_btn.size = btn_size
+	mobile_action_btn.position = Vector2(right_margin, bottom_margin)
+	mobile_action_btn.pressed.connect(_on_mobile_action_pressed)
+	mobile_action_btn.focus_mode = Control.FOCUS_NONE
+	ui_canvas.add_child(mobile_action_btn)
 	
-	var btn_build = Button.new()
-	btn_build.text = "건설"
-	btn_build.size = btn_size
-	btn_build.position = Vector2(right_margin, bottom_margin - 90)
-	btn_build.pressed.connect(toggle_build_menu)
-	btn_build.focus_mode = Control.FOCUS_NONE
-	ui_canvas.add_child(btn_build)
+	btn_dash = Button.new()
+	btn_dash.text = "대쉬 [Shift]"
+	btn_dash.size = btn_size
+	btn_dash.position = Vector2(right_margin - 90, bottom_margin)
+	btn_dash.pressed.connect(use_dash)
+	btn_dash.focus_mode = Control.FOCUS_NONE
+	ui_canvas.add_child(btn_dash)
 	
-	var btn_rotate = Button.new()
-	btn_rotate.text = "회전"
-	btn_rotate.size = btn_size
-	btn_rotate.position = Vector2(right_margin, bottom_margin)
-	btn_rotate.pressed.connect(rotate_building)
-	btn_rotate.focus_mode = Control.FOCUS_NONE
-	ui_canvas.add_child(btn_rotate)
+	btn_orbital = Button.new()
+	btn_orbital.text = "폭격 [F]"
+	btn_orbital.size = btn_size
+	btn_orbital.position = Vector2(right_margin - 180, bottom_margin)
+	btn_orbital.pressed.connect(use_orbital_strike)
+	btn_orbital.focus_mode = Control.FOCUS_NONE
+	btn_orbital.visible = false
+	ui_canvas.add_child(btn_orbital)
 
+func use_dash():
+	if boost_cooldown <= 0:
+		boost_timer = 0.5
+		boost_cooldown = 4.0
+
+func use_orbital_strike():
+	if active_relics.get("orbital_strike", false) and orbital_cooldown <= 0:
+		cast_orbital_strike()
+
+func _on_mobile_action_pressed():
+	if build_type == 0:
+		toggle_build_menu()
+	else:
+		rotate_building()
 func _ready():
 	add_to_group("player")
 	GameManager.player = self
@@ -275,14 +300,6 @@ func _setup_ui():
 	btn_down.position = Vector2(10, 100)
 	btn_down.pressed.connect(func(): change_floor(current_floor - 1))
 	floor_panel.add_child(btn_down)
-	
-	# 하단 중앙 건설 메뉴 토글 버튼
-	var btn_build_menu = Button.new()
-	btn_build_menu.text = "건설 메뉴 [B]"
-	btn_build_menu.size = Vector2(150, 50)
-	btn_build_menu.position = Vector2(vp_size.x / 2.0 - 75, vp_size.y - 60)
-	btn_build_menu.pressed.connect(func(): toggle_build_menu())
-	ui_canvas.add_child(btn_build_menu)
 	
 	# 현재 선택된 건물 표시 레이블
 	active_build_label = Label.new()
@@ -553,6 +570,32 @@ func update_ui():
 		s += "웨이브 " + str(GameManager.current_wave) + " | " + ("낮(정비)" if GameManager.current_phase == "DAY" else "밤(방어)") + " - " + str(int(GameManager.phase_timer)) + "초 남음"
 		status_label.text = s
 		
+		if is_instance_valid(mobile_action_btn):
+			if build_type == 0:
+				mobile_action_btn.text = "건설"
+			else:
+				mobile_action_btn.text = "회전"
+				
+		if is_instance_valid(btn_dash):
+			if boost_cooldown > 0:
+				btn_dash.text = "대쉬\n(" + str(int(boost_cooldown)) + "s)"
+				btn_dash.disabled = true
+			else:
+				btn_dash.text = "대쉬 [Shift]"
+				btn_dash.disabled = false
+				
+		if is_instance_valid(btn_orbital):
+			if active_relics.get("orbital_strike", false):
+				btn_orbital.visible = true
+				if orbital_cooldown > 0:
+					btn_orbital.text = "폭격\n(" + str(int(orbital_cooldown)) + "s)"
+					btn_orbital.disabled = true
+				else:
+					btn_orbital.text = "폭격 [F]"
+					btn_orbital.disabled = false
+			else:
+				btn_orbital.visible = false
+
 	if is_instance_valid(boss_hp_panel) and is_instance_valid(boss_hp_label):
 		if is_instance_valid(GameManager.boss) and not GameManager.boss.is_dead:
 			boss_hp_panel.visible = true
