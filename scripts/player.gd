@@ -117,7 +117,6 @@ func create_mobile_ui():
 	mobile_action_btn.text = "건설"
 	mobile_action_btn.size = btn_size
 	mobile_action_btn.position = Vector2(right_margin, bottom_margin)
-	mobile_action_btn.pressed.connect(_on_mobile_action_pressed)
 	mobile_action_btn.focus_mode = Control.FOCUS_NONE
 	mobile_action_btn.add_theme_font_size_override("font_size", 28)
 	ui_canvas.add_child(mobile_action_btn)
@@ -126,7 +125,6 @@ func create_mobile_ui():
 	btn_dash.text = "대쉬 [Shift]"
 	btn_dash.size = btn_size
 	btn_dash.position = Vector2(right_margin - 140, bottom_margin)
-	btn_dash.pressed.connect(use_dash)
 	btn_dash.focus_mode = Control.FOCUS_NONE
 	btn_dash.add_theme_font_size_override("font_size", 24)
 	ui_canvas.add_child(btn_dash)
@@ -135,7 +133,6 @@ func create_mobile_ui():
 	btn_orbital.text = "폭격 [F]"
 	btn_orbital.size = btn_size
 	btn_orbital.position = Vector2(right_margin - 280, bottom_margin)
-	btn_orbital.pressed.connect(use_orbital_strike)
 	btn_orbital.focus_mode = Control.FOCUS_NONE
 	btn_orbital.add_theme_font_size_override("font_size", 24)
 	btn_orbital.visible = false

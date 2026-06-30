@@ -13,9 +13,6 @@ var time_modulate = null
 
 func _ready():
 	print("=== Main Scene 정상 시작됨 (심리스 무한 맵 가동) ===")
-	get_window().content_scale_size = Vector2i(1280, 720)
-	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
-	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
 	
 	ProjectSettings.set_setting("input_devices/pointing/emulate_touch_from_mouse", true)
 	ProjectSettings.set_setting("input_devices/pointing/emulate_mouse_from_touch", true)
