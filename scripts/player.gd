@@ -811,6 +811,20 @@ func _input(event):
 			joystick_active = true
 			_update_joystick(pos)
 			get_viewport().set_input_as_handled()
+		else:
+			var handled_by_btn = false
+			if is_instance_valid(btn_dash) and btn_dash.get_global_rect().has_point(pos):
+				use_dash()
+				handled_by_btn = true
+			elif is_instance_valid(mobile_action_btn) and mobile_action_btn.get_global_rect().has_point(pos):
+				_on_mobile_action_pressed()
+				handled_by_btn = true
+			elif is_instance_valid(btn_orbital) and btn_orbital.visible and btn_orbital.get_global_rect().has_point(pos):
+				use_orbital_strike()
+				handled_by_btn = true
+				
+			if handled_by_btn:
+				get_viewport().set_input_as_handled()
 	elif is_touch_release:
 		if touch_index == joystick_touch_id:
 			joystick_touch_id = -1
