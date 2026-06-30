@@ -224,6 +224,36 @@ func _draw():
 			
 	# 중앙 코어(넥서스 엔진) 그리기
 	draw_circle(Vector2(0, 0), 20, Color(0.0, 1.0, 0.5, 0.8))
+	
+	# 건설 모드 시 설치 가능 구역 하이라이트 표시
+	if build_type != 0 or is_instance_valid(moving_building):
+		var check_type = build_type
+		if build_type == -1 and is_instance_valid(moving_building):
+			check_type = moving_building.get_meta("build_type_id") if moving_building.has_meta("build_type_id") else 1
+			
+		var is_internal = (check_type >= 1 and check_type <= 4) or (check_type >= 8 and check_type <= 11)
+		var is_external = (check_type >= 5 and check_type <= 7)
+		var max_grid = 2
+		
+		for i in range(-max_grid - 1, max_grid + 2):
+			for j in range(-max_grid - 1, max_grid + 2):
+				var g_pos = Vector2i(i, j)
+				var is_inside = abs(i) <= max_grid and abs(j) <= max_grid
+				var is_outer_ring = max(abs(i), abs(j)) == max_grid + 1
+				
+				var can_build = false
+				if is_internal and is_inside: can_build = true
+				elif is_external and is_outer_ring: can_build = true
+				
+				if can_build:
+					var tile_rect = Rect2(i * 64 - 32, j * 64 - 32, 64, 64)
+					if floor_grids[current_floor].has(g_pos):
+						draw_rect(tile_rect, Color(1.0, 0.0, 0.0, 0.2)) # 이미 점유됨 (빨강)
+					else:
+						draw_rect(tile_rect, Color(0.0, 1.0, 0.5, 0.2)) # 설치 가능 (초록/파랑)
+				elif is_external and is_inside:
+					var tile_rect = Rect2(i * 64 - 32, j * 64 - 32, 64, 64)
+					draw_rect(tile_rect, Color(1.0, 0.0, 0.0, 0.1)) # 외부 전용인데 내부일 때 불가 표시
 
 func _setup_ui():
 	ui_canvas = CanvasLayer.new()
@@ -664,6 +694,10 @@ func game_over():
 	get_tree().change_scene_to_file("res://scenes/title_screen.tscn")
 
 func _process(delta):
+	if is_dead: return
+	
+	queue_redraw()
+	
 	if get_tree().paused: return
 	
 	if orbital_cooldown > 0:
