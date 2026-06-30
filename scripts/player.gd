@@ -38,6 +38,7 @@ var build_pressed_this_frame = false
 var mobile_action_btn = null
 var btn_dash = null
 var btn_orbital = null
+var last_action_time = 0
 
 var attack_timer = 0.0
 var attack_rate = 0.5
@@ -148,6 +149,11 @@ func use_orbital_strike():
 		cast_orbital_strike()
 
 func _on_mobile_action_pressed():
+	var current_time = Time.get_ticks_msec()
+	if current_time - last_action_time < 100:
+		return
+	last_action_time = current_time
+	
 	if build_type == 0:
 		toggle_build_menu()
 	else:
