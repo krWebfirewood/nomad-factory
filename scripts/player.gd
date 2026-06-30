@@ -97,44 +97,47 @@ var moving_grid_pos = Vector2i()
 func create_mobile_ui():
 	var vp_size = get_viewport_rect().size
 	joystick_bg = ColorRect.new()
-	joystick_bg.size = Vector2(160, 160)
-	joystick_bg.position = Vector2(50, vp_size.y - 210)
+	joystick_bg.size = Vector2(240, 240)
+	joystick_bg.position = Vector2(50, vp_size.y - 290)
 	joystick_bg.color = Color(1, 1, 1, 0.2)
 	ui_canvas.add_child(joystick_bg)
 	joystick_center = joystick_bg.position + joystick_bg.size / 2.0
 	
 	joystick_knob = ColorRect.new()
-	joystick_knob.size = Vector2(60, 60)
+	joystick_knob.size = Vector2(100, 100)
 	joystick_knob.position = joystick_center - joystick_knob.size / 2.0
 	joystick_knob.color = Color(1, 1, 1, 0.5)
 	ui_canvas.add_child(joystick_knob)
 	
-	var btn_size = Vector2(80, 80)
+	var btn_size = Vector2(120, 120)
 	# floor_panel이 vp_size.x - 120 에 있으므로, 안 겹치게 더 왼쪽으로 이동
-	var right_margin = vp_size.x - 220
-	var bottom_margin = vp_size.y - 100
+	var right_margin = vp_size.x - 260
+	var bottom_margin = vp_size.y - 150
 	mobile_action_btn = Button.new()
 	mobile_action_btn.text = "건설"
 	mobile_action_btn.size = btn_size
 	mobile_action_btn.position = Vector2(right_margin, bottom_margin)
 	mobile_action_btn.pressed.connect(_on_mobile_action_pressed)
 	mobile_action_btn.focus_mode = Control.FOCUS_NONE
+	mobile_action_btn.add_theme_font_size_override("font_size", 28)
 	ui_canvas.add_child(mobile_action_btn)
 	
 	btn_dash = Button.new()
 	btn_dash.text = "대쉬 [Shift]"
 	btn_dash.size = btn_size
-	btn_dash.position = Vector2(right_margin - 90, bottom_margin)
+	btn_dash.position = Vector2(right_margin - 140, bottom_margin)
 	btn_dash.pressed.connect(use_dash)
 	btn_dash.focus_mode = Control.FOCUS_NONE
+	btn_dash.add_theme_font_size_override("font_size", 24)
 	ui_canvas.add_child(btn_dash)
 	
 	btn_orbital = Button.new()
 	btn_orbital.text = "폭격 [F]"
 	btn_orbital.size = btn_size
-	btn_orbital.position = Vector2(right_margin - 180, bottom_margin)
+	btn_orbital.position = Vector2(right_margin - 280, bottom_margin)
 	btn_orbital.pressed.connect(use_orbital_strike)
 	btn_orbital.focus_mode = Control.FOCUS_NONE
+	btn_orbital.add_theme_font_size_override("font_size", 24)
 	btn_orbital.visible = false
 	ui_canvas.add_child(btn_orbital)
 
