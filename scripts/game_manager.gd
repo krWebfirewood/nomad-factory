@@ -53,6 +53,8 @@ func _spawn_ore(grid_pos: Vector2i, type: String):
 
 var last_boss_wave = 0
 var initial_rival_spawned = false
+var current_phase = "DAY"
+var phase_timer = 20.0
 
 func _process(delta):
 	if get_tree().paused: return
@@ -60,18 +62,25 @@ func _process(delta):
 	if get_tree().current_scene.name == "TitleScreen": return
 	
 	game_time += delta
-	var new_wave = int(game_time / 30.0) + 1
+	phase_timer -= delta
 	
-	if new_wave > current_wave:
-		current_wave = new_wave
-		
-		if current_wave % 3 == 0 and current_wave > last_boss_wave:
-			spawn_boss()
-			last_boss_wave = current_wave
+	if phase_timer <= 0:
+		if current_phase == "DAY":
+			current_phase = "NIGHT"
+			phase_timer = 30.0
+		else:
+			current_phase = "DAY"
+			phase_timer = 20.0
+			current_wave += 1
 			
-		# 웨이브마다 중립 요새(라이벌) 1기 스폰 (2웨이브부터)
-		if current_wave >= 2:
-			spawn_rival()
+			if current_wave % 3 == 0 and current_wave > last_boss_wave:
+				spawn_boss()
+				last_boss_wave = current_wave
+			
+			if current_wave >= 2:
+				spawn_rival()
+				
+			spawn_supply_crate()
 	
 	if is_instance_valid(player):
 		if not initial_rival_spawned:
@@ -80,11 +89,21 @@ func _process(delta):
 			
 		player.update_ui()
 		
-		_spawn_timer -= delta
-		if _spawn_timer <= 0:
-			_spawn_enemy()
-			var current_spawn_rate = max(0.3, _base_spawn_rate - (current_wave * 0.15))
-			_spawn_timer = current_spawn_rate
+		if current_phase == "NIGHT":
+			_spawn_timer -= delta
+			if _spawn_timer <= 0:
+				_spawn_enemy()
+				var current_spawn_rate = max(1.0, 3.0 - (current_wave * 0.1))
+				_spawn_timer = current_spawn_rate
+
+func spawn_supply_crate():
+	if not is_instance_valid(player): return
+	var crate_script = preload("res://scripts/supply_crate.gd")
+	var crate = crate_script.new()
+	var angle = randf() * PI * 2
+	var distance = randf_range(300, 800)
+	crate.global_position = player.global_position + Vector2(cos(angle), sin(angle)) * distance
+	get_tree().current_scene.add_child(crate)
 
 func spawn_boss():
 	var boss_types = [
@@ -106,29 +125,28 @@ func spawn_boss():
 	print("!!! 거대 보스 등장 !!!")
 
 func _spawn_enemy():
-	var angle = randf() * PI * 2
-	var distance = 600.0
-	var spawn_pos = player.global_position + Vector2(cos(angle), sin(angle)) * distance
+	var spawn_count = 1 + int(current_wave * 1.5)
 	
-	var enemy = enemy_scene.instantiate()
-	enemy.global_position = spawn_pos
-	
-	if enemy.has_method("setup"):
-		# 몬스터 타입 결정 로직
-		var type = 0 # 0: 일반
-		var rand_val = randf()
+	for i in range(spawn_count):
+		var angle = randf() * PI * 2
+		var distance = 600.0 + randf_range(-50, 200)
+		var spawn_pos = player.global_position + Vector2(cos(angle), sin(angle)) * distance
 		
-		if current_wave >= 2:
-			if rand_val < 0.2:
-				type = 2 # 20% 확률로 탱커
-			elif rand_val < 0.5:
-				type = 1 # 30% 확률로 스워머
-			elif rand_val < 0.7:
-				type = 3 # 20% 확률로 스피터
+		var enemy = enemy_scene.instantiate()
+		enemy.global_position = spawn_pos
 		
-		enemy.setup(current_wave, type)
-		
-	get_tree().current_scene.add_child(enemy)
+		if enemy.has_method("setup"):
+			var type = 0
+			var rand_val = randf()
+			
+			if current_wave >= 2:
+				if rand_val < 0.1: type = 2
+				elif rand_val < 0.6: type = 1
+				elif rand_val < 0.8: type = 3
+			
+			enemy.setup(current_wave, type)
+			
+		get_tree().current_scene.add_child(enemy)
 
 func spawn_rival():
 	var active_rivals = get_tree().get_nodes_in_group("rival").size()

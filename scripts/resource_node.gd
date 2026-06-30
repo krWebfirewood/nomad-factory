@@ -7,6 +7,7 @@ var is_gathering = false
 var original_pos = Vector2.ZERO
 
 func _ready():
+	add_to_group("resource")
 	if has_node("Sprite2D"):
 		original_pos = $Sprite2D.position
 

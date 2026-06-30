@@ -31,7 +31,7 @@ func _ready():
 
 func _process(delta):
 	var parent = GameManager.player
-	if is_instance_valid(parent) and not parent.get("is_dead", false):
+	if is_instance_valid(parent) and parent.hp > 0:
 		heal_timer -= delta
 		if heal_timer <= 0:
 			heal_timer = 1.0

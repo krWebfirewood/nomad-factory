@@ -28,6 +28,14 @@ var build_preview: Node2D
 var preview_rect: ColorRect
 var preview_arrow: ColorRect
 
+var joystick_bg = null
+var joystick_knob = null
+var joystick_active = false
+var joystick_touch_id = -1
+var joystick_vector = Vector2.ZERO
+var joystick_center = Vector2.ZERO
+var build_pressed_this_frame = false
+
 var attack_timer = 0.0
 var attack_rate = 0.5
 
@@ -82,6 +90,42 @@ var filter_option = null
 var selected_building = null
 var moving_building = null
 var moving_grid_pos = Vector2i()
+
+func create_mobile_ui():
+	var vp_size = get_viewport_rect().size
+	joystick_bg = ColorRect.new()
+	joystick_bg.size = Vector2(160, 160)
+	joystick_bg.position = Vector2(50, vp_size.y - 210)
+	joystick_bg.color = Color(1, 1, 1, 0.2)
+	ui_canvas.add_child(joystick_bg)
+	joystick_center = joystick_bg.position + joystick_bg.size / 2.0
+	
+	joystick_knob = ColorRect.new()
+	joystick_knob.size = Vector2(60, 60)
+	joystick_knob.position = joystick_center - joystick_knob.size / 2.0
+	joystick_knob.color = Color(1, 1, 1, 0.5)
+	ui_canvas.add_child(joystick_knob)
+	
+	var btn_size = Vector2(80, 80)
+	# floor_panel이 vp_size.x - 120 에 있으므로, 안 겹치게 더 왼쪽으로 이동
+	var right_margin = vp_size.x - 220
+	var bottom_margin = vp_size.y - 100
+	
+	var btn_build = Button.new()
+	btn_build.text = "건설"
+	btn_build.size = btn_size
+	btn_build.position = Vector2(right_margin, bottom_margin - 90)
+	btn_build.pressed.connect(toggle_build_menu)
+	btn_build.focus_mode = Control.FOCUS_NONE
+	ui_canvas.add_child(btn_build)
+	
+	var btn_rotate = Button.new()
+	btn_rotate.text = "회전"
+	btn_rotate.size = btn_size
+	btn_rotate.position = Vector2(right_margin, bottom_margin)
+	btn_rotate.pressed.connect(rotate_building)
+	btn_rotate.focus_mode = Control.FOCUS_NONE
+	ui_canvas.add_child(btn_rotate)
 
 func _ready():
 	add_to_group("player")
@@ -153,6 +197,7 @@ func _draw():
 func _setup_ui():
 	ui_canvas = CanvasLayer.new()
 	get_tree().current_scene.add_child.call_deferred(ui_canvas)
+	create_mobile_ui()
 	
 	# 좌측 상단 자원 표시 패널
 	var res_panel = ColorRect.new()
@@ -278,15 +323,16 @@ func _setup_ui():
 		"4:레이저\n(강철10,코어5)", 
 		"5:방벽\n(돌10)", 
 		"6:수리소\n(나무20,돌10)", 
-		"7:드릴\n(돌20,코어10)", 
+		"7:드론기지\n(나무10,돌10)", 
 		"8:공급기\n(나무5,돌5)", 
 		"9:벨트\n(나무2)", 
 		"0:가공소\n(돌15,코어2)",
-		"-:미사일\n(강철5,코어10)"
+		"-:미사일\n(강철5,코어10)",
+		"M:지뢰살포기\n(강철5,코어5)"
 	]
-	var type_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+	var type_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 	
-	for i in range(11):
+	for i in range(12):
 		var btn = Button.new()
 		btn.text = names[i]
 		btn.custom_minimum_size = Vector2(110, 60)
@@ -504,7 +550,7 @@ func update_ui():
 		
 	if is_instance_valid(status_label):
 		var s = "이동 요새 HP: " + str(ceil(max(0, hp))) + " / " + str(ceil(max_hp)) + "\n"
-		s += "웨이브 " + str(GameManager.current_wave) + " 진행 중!"
+		s += "웨이브 " + str(GameManager.current_wave) + " | " + ("낮(정비)" if GameManager.current_phase == "DAY" else "밤(방어)") + " - " + str(int(GameManager.phase_timer)) + "초 남음"
 		status_label.text = s
 		
 	if is_instance_valid(boss_hp_panel) and is_instance_valid(boss_hp_label):
@@ -632,16 +678,19 @@ func _process_movement(delta):
 		
 	var direction = Vector2.ZERO
 	
-	if Input.is_physical_key_pressed(KEY_D) or Input.is_action_pressed("ui_right"):
-		direction.x += 1
-	if Input.is_physical_key_pressed(KEY_A) or Input.is_action_pressed("ui_left"):
-		direction.x -= 1
-	if Input.is_physical_key_pressed(KEY_S) or Input.is_action_pressed("ui_down"):
-		direction.y += 1
-	if Input.is_physical_key_pressed(KEY_W) or Input.is_action_pressed("ui_up"):
-		direction.y -= 1
-		
-	direction = direction.normalized()
+	if joystick_active:
+		direction = joystick_vector
+	else:
+		if Input.is_physical_key_pressed(KEY_D) or Input.is_action_pressed("ui_right"):
+			direction.x += 1
+		if Input.is_physical_key_pressed(KEY_A) or Input.is_action_pressed("ui_left"):
+			direction.x -= 1
+		if Input.is_physical_key_pressed(KEY_S) or Input.is_action_pressed("ui_down"):
+			direction.y += 1
+		if Input.is_physical_key_pressed(KEY_W) or Input.is_action_pressed("ui_up"):
+			direction.y -= 1
+			
+		direction = direction.normalized()
 	
 	if direction != Vector2.ZERO:
 		velocity = direction * speed
@@ -683,12 +732,65 @@ func auto_attack():
 		proj.direction = global_position.direction_to(target.global_position)
 		proj.damage = 10.0 + (GameManager.stat_damage_mult * 5.0)
 		proj.attack_type = "kinetic"
-		proj.target_groups = ["enemy", "rival"]
+		proj.target_groups = ["enemy", "rival", "boss"]
 		get_parent().add_child(proj)
 		attack_timer = attack_rate
 
+func _input(event):
+	var is_touch_press = false
+	var is_touch_release = false
+	var is_drag = false
+	var pos = Vector2.ZERO
+	var touch_index = 0
+	
+	if event is InputEventScreenTouch:
+		is_touch_press = event.pressed
+		is_touch_release = not event.pressed
+		pos = event.position
+		touch_index = event.index
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		is_touch_press = event.pressed
+		is_touch_release = not event.pressed
+		pos = event.position
+		touch_index = 0
+	elif event is InputEventScreenDrag:
+		is_drag = true
+		pos = event.position
+		touch_index = event.index
+	elif event is InputEventMouseMotion and (Input.get_mouse_button_mask() & MOUSE_BUTTON_MASK_LEFT) != 0:
+		is_drag = true
+		pos = event.position
+		touch_index = 0
+
+	if is_touch_press:
+		if joystick_touch_id == -1 and pos.distance_to(joystick_center) < 120:
+			joystick_touch_id = touch_index
+			joystick_active = true
+			_update_joystick(pos)
+			get_viewport().set_input_as_handled()
+	elif is_touch_release:
+		if touch_index == joystick_touch_id:
+			joystick_touch_id = -1
+			joystick_active = false
+			joystick_vector = Vector2.ZERO
+			if is_instance_valid(joystick_knob):
+				joystick_knob.position = joystick_center - joystick_knob.size / 2.0
+			get_viewport().set_input_as_handled()
+	elif is_drag:
+		if touch_index == joystick_touch_id:
+			_update_joystick(pos)
+			get_viewport().set_input_as_handled()
+
+func _update_joystick(pos: Vector2):
+	if not is_instance_valid(joystick_knob): return
+	var dir = joystick_center.direction_to(pos)
+	var dist = min(joystick_center.distance_to(pos), 80.0)
+	joystick_knob.position = (joystick_center + dir * dist) - joystick_knob.size / 2.0
+	joystick_vector = dir * (dist / 80.0)
+
 func _unhandled_input(event):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		build_pressed_this_frame = true
 		if build_type == 0 and moving_building == null:
 			var target = get_hovered_fortress()
 			if target != null:
@@ -723,24 +825,28 @@ func _unhandled_input(event):
 		elif event.keycode == KEY_3: select_build_type(3, "3:샷건")
 		elif event.keycode == KEY_4: select_build_type(4, "4:레이저")
 		elif event.keycode == KEY_0: select_build_type(10, "0:가공소")
+		elif event.keycode == KEY_M: select_build_type(12, "M:지뢰살포기")
 		
 		elif event.keycode == KEY_U:
 			upgrade_panel.visible = not upgrade_panel.visible
 		elif event.keycode == KEY_R:
-			if build_direction == Vector2i.RIGHT: build_direction = Vector2i.DOWN
-			elif build_direction == Vector2i.DOWN: build_direction = Vector2i.LEFT
-			elif build_direction == Vector2i.LEFT: build_direction = Vector2i.UP
-			elif build_direction == Vector2i.UP: build_direction = Vector2i.RIGHT
-			
-			if is_instance_valid(preview_arrow):
-				if build_direction == Vector2i.RIGHT: preview_arrow.rotation = 0
-				elif build_direction == Vector2i.DOWN: preview_arrow.rotation = PI/2
-				elif build_direction == Vector2i.LEFT: preview_arrow.rotation = PI
-				elif build_direction == Vector2i.UP: preview_arrow.rotation = -PI/2
+			rotate_building()
 		elif event.keycode == KEY_SPACE:
 			interact_with_resource()
 		elif event.keycode == KEY_B:
 			toggle_build_menu()
+
+func rotate_building():
+	if build_direction == Vector2i.RIGHT: build_direction = Vector2i.DOWN
+	elif build_direction == Vector2i.DOWN: build_direction = Vector2i.LEFT
+	elif build_direction == Vector2i.LEFT: build_direction = Vector2i.UP
+	elif build_direction == Vector2i.UP: build_direction = Vector2i.RIGHT
+	
+	if is_instance_valid(preview_arrow):
+		if build_direction == Vector2i.RIGHT: preview_arrow.rotation = 0
+		elif build_direction == Vector2i.DOWN: preview_arrow.rotation = PI/2
+		elif build_direction == Vector2i.LEFT: preview_arrow.rotation = PI
+		elif build_direction == Vector2i.UP: preview_arrow.rotation = -PI/2
 
 func toggle_build_menu():
 	if is_instance_valid(build_menu_panel):
@@ -750,8 +856,8 @@ func update_hotbar_ui():
 	var names = {
 		1: "1:기관총\n(나무5,돌5)", 2: "2:스나이퍼\n(돌15)", 3: "3:샷건\n(나무15)",
 		4: "4:레이저\n(강철10,코어5)", 5: "5:방벽\n(돌10)", 6: "6:수리소\n(나무20,돌10)",
-		7: "7:드릴\n(돌20,코어10)", 8: "8:공급기\n(나무5,돌5)", 9: "9:벨트\n(나무2)",
-		10: "0:가공소\n(돌15,코어2)", 11: "-:미사일\n(강철5,코어10)"
+		7: "7:드론기지\n(나무10,돌10)", 8: "8:공급기\n(나무5,돌5)", 9: "9:벨트\n(나무2)",
+		10: "0:가공소\n(돌15,코어2)", 11: "-:미사일\n(강철5,코어10)", 12: "M:지뢰살포기\n(강철5,코어5)"
 	}
 	for tid in hotbar_buttons.keys():
 		var btn = hotbar_buttons[tid]
@@ -790,6 +896,7 @@ func set_build_type(type):
 		elif build_type == 9: preview_rect.color = Color(0.8, 0.5, 0.2, 0.5) # 벨트
 		elif build_type == 10: preview_rect.color = Color(0.5, 0.5, 0.5, 0.5) # 가공소
 		elif build_type == 11: preview_rect.color = Color(0.8, 0.3, 0.1, 0.5) # 미사일
+		elif build_type == 12: preview_rect.color = Color(1.0, 0.5, 0.0, 0.5) # 지뢰
 	
 	# UI 하이라이트 업데이트
 	for i in range(hotbar_slots.size()):
@@ -860,7 +967,8 @@ func handle_building():
 	var local_pos = FactoryManager.get_local_pos(grid_pos)
 	build_preview.global_position = target.to_global(local_pos)
 	
-	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+	if build_pressed_this_frame:
+		build_pressed_this_frame = false
 		if not floor_grids[current_floor].has(grid_pos):
 			if build_type == -1 and is_instance_valid(moving_building):
 				moving_building.grid_pos = grid_pos
@@ -920,13 +1028,13 @@ func handle_building():
 				else:
 					print("자원 부족: 나무 20, 돌 10 필요 (수리소)")
 			elif build_type == 7:
-				if inventory.get("monster_core", 0) >= 10 and inventory.get("stone", 0) >= 20:
+				if inventory.get("wood", 0) >= 10 and inventory.get("stone", 0) >= 10:
 					var dr_script = preload("res://scripts/drill.gd")
 					building = dr_script.new()
-					add_item("monster_core", -10)
-					add_item("stone", -20)
+					add_item("wood", -10)
+					add_item("stone", -10)
 				else:
-					print("자원 부족: 코어 10, 돌 20 필요 (드릴)")
+					print("자원 부족: 나무 10, 돌 10 필요 (드론 기지)")
 			elif build_type == 8:
 				if inventory.get("wood", 0) >= 5 and inventory.get("stone", 0) >= 5:
 					var prov_script = preload("res://scripts/provider.gd")
@@ -958,6 +1066,14 @@ func handle_building():
 					add_item("monster_core", -10)
 				else:
 					print("자원 부족: 강철 5, 코어 10 필요 (미사일 타워)")
+			elif build_type == 12:
+				if inventory.get("steel_plate", 0) >= 5 and inventory.get("monster_core", 0) >= 5:
+					var mine_script = preload("res://scripts/mine_dispenser.gd")
+					building = mine_script.new()
+					add_item("steel_plate", -5)
+					add_item("monster_core", -5)
+				else:
+					print("자원 부족: 강철 5, 코어 5 필요 (지뢰살포기)")
 				
 			if building:
 				if "grid_pos" in building: building.grid_pos = grid_pos
@@ -967,10 +1083,10 @@ func handle_building():
 				# 건물 메타데이터 설정
 				building.set_meta("level", 1)
 				building.set_meta("build_type_id", build_type)
-				var b_names = ["", "기관총", "스나이퍼", "샷건", "레이저", "방벽", "수리소", "드릴", "공급기", "벨트", "가공소", "미사일"]
+				var b_names = ["", "기관총", "스나이퍼", "샷건", "레이저", "방벽", "수리소", "드론기지", "공급기", "벨트", "가공소", "미사일", "지뢰살포기"]
 				if build_type > 0 and build_type < b_names.size():
 					building.set_meta("b_name", b_names[build_type])
-				if "target_groups" in building: building.target_groups = ["enemy", "rival"]
+				if "target_groups" in building: building.target_groups = ["enemy", "rival", "boss"]
 				building.position = local_pos
 				
 				if build_direction == Vector2i.RIGHT: building.rotation = 0
@@ -1399,7 +1515,7 @@ func load_save_data(data: Dictionary):
 					if b_type > 0 and b_type < b_names.size():
 						building.set_meta("b_name", b_names[b_type])
 						
-					if "target_groups" in building: building.target_groups = ["enemy", "rival"]
+					if "target_groups" in building: building.target_groups = ["enemy", "rival", "boss"]
 					
 					building.position = Vector2(pos.x * 64, pos.y * 64)
 					if build_direction == Vector2i.RIGHT: building.rotation = 0
