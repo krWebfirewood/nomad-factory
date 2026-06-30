@@ -38,6 +38,7 @@ var build_pressed_this_frame = false
 var mobile_action_btn = null
 var btn_dash = null
 var btn_orbital = null
+var btn_cancel = null
 var last_action_time = 0
 
 var attack_timer = 0.0
@@ -138,6 +139,15 @@ func create_mobile_ui():
 	btn_orbital.add_theme_font_size_override("font_size", 24)
 	btn_orbital.visible = false
 	ui_canvas.add_child(btn_orbital)
+	
+	btn_cancel = Button.new()
+	btn_cancel.text = "취소"
+	btn_cancel.size = btn_size
+	btn_cancel.position = Vector2(right_margin, bottom_margin - 140)
+	btn_cancel.focus_mode = Control.FOCUS_NONE
+	btn_cancel.add_theme_font_size_override("font_size", 28)
+	btn_cancel.visible = false
+	ui_canvas.add_child(btn_cancel)
 
 func use_dash():
 	if boost_cooldown <= 0:
@@ -859,6 +869,9 @@ func _input(event):
 			elif is_instance_valid(mobile_action_btn) and mobile_action_btn.get_global_rect().has_point(pos):
 				_on_mobile_action_pressed()
 				handled_by_btn = true
+			elif is_instance_valid(btn_cancel) and btn_cancel.visible and btn_cancel.get_global_rect().has_point(pos):
+				set_build_type(0)
+				handled_by_btn = true
 			elif is_instance_valid(btn_orbital) and btn_orbital.visible and btn_orbital.get_global_rect().has_point(pos):
 				use_orbital_strike()
 				handled_by_btn = true
@@ -900,6 +913,10 @@ func _unhandled_input(event):
 					if is_instance_valid(building_context_panel): building_context_panel.visible = false
 			else:
 				if is_instance_valid(building_context_panel): building_context_panel.visible = false
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		if build_type != 0:
+			set_build_type(0)
+			get_viewport().set_input_as_handled()
 
 	if event is InputEventKey and event.pressed:
 		if event.keycode == KEY_1: select_build_type(1, "1:기관총")
@@ -946,6 +963,10 @@ func rotate_building():
 		elif build_direction == Vector2i.UP: preview_arrow.rotation = -PI/2
 
 func toggle_build_menu():
+	if build_type != 0:
+		set_build_type(0)
+		return
+		
 	if is_instance_valid(build_menu_panel):
 		build_menu_panel.visible = not build_menu_panel.visible
 
@@ -979,8 +1000,12 @@ func select_build_type(type_id: int, b_name: String):
 func set_build_type(type):
 	build_type = type
 	if build_type == 0:
+		if is_instance_valid(mobile_action_btn): mobile_action_btn.text = "건설"
+		if is_instance_valid(btn_cancel): btn_cancel.visible = false
 		if is_instance_valid(build_preview): build_preview.visible = false
 	else:
+		if is_instance_valid(mobile_action_btn): mobile_action_btn.text = "회전"
+		if is_instance_valid(btn_cancel): btn_cancel.visible = true
 		if is_instance_valid(build_preview): build_preview.visible = true
 		if build_type == 1: preview_rect.color = Color(0.0, 0.3, 0.8, 0.5)
 		elif build_type == 2: preview_rect.color = Color(0.8, 0.0, 0.0, 0.5)
