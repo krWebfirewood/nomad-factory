@@ -900,6 +900,9 @@ func _update_joystick(pos: Vector2):
 
 func _unhandled_input(event):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if Time.get_ticks_msec() - last_action_time < 200:
+			return
+			
 		build_pressed_this_frame = true
 		if build_type == 0 and moving_building == null:
 			var target = get_hovered_fortress()
@@ -987,6 +990,7 @@ func update_hotbar_ui():
 			btn.text = "[잠김]\n" + names[tid].split(":")[1]
 
 func select_build_type(type_id: int, b_name: String):
+	last_action_time = Time.get_ticks_msec()
 	if not type_id in unlocked_towers:
 		print("아직 해금되지 않은 타워입니다!")
 		return
@@ -1494,7 +1498,23 @@ func _on_timer_timeout():
 
 func cast_orbital_strike():
 	orbital_cooldown = 15.0
-	var mouse_world_pos = get_global_mouse_position()
+	
+	var target_pos = global_position
+	var enemies = get_tree().get_nodes_in_group("enemy")
+	var min_dist = 99999.0
+	var closest_enemy = null
+	
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			var dist = enemy.global_position.distance_to(global_position)
+			if dist < min_dist:
+				min_dist = dist
+				closest_enemy = enemy
+				
+	if closest_enemy != null:
+		target_pos = closest_enemy.global_position
+	else:
+		target_pos = global_position + Vector2(randf_range(-200, 200), randf_range(-200, 200))
 	
 	add_camera_shake(50.0)
 	print("궤도 폭격 발사!")
@@ -1503,7 +1523,7 @@ func cast_orbital_strike():
 	var effect = ColorRect.new()
 	effect.color = Color(1.0, 0.5, 0.1, 0.6)
 	effect.size = Vector2(600, 600)
-	effect.position = mouse_world_pos - effect.size / 2.0
+	effect.position = target_pos - effect.size / 2.0
 	get_tree().current_scene.add_child(effect)
 	
 	var tween = get_tree().create_tween()
@@ -1511,10 +1531,9 @@ func cast_orbital_strike():
 	tween.tween_callback(effect.queue_free)
 	
 	# 범위 내 적 데미지
-	var enemies = get_tree().get_nodes_in_group("enemy")
 	for enemy in enemies:
 		if is_instance_valid(enemy):
-			var dist = enemy.global_position.distance_to(mouse_world_pos)
+			var dist = enemy.global_position.distance_to(target_pos)
 			if dist <= 300.0:
 				if enemy.has_method("take_damage"):
 					enemy.take_damage(800.0 * GameManager.stat_damage_mult, "explosive")
