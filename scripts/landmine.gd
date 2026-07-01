@@ -7,28 +7,26 @@ var alpha = 1.0
 func _ready():
 	add_to_group("landmine")
 	
-	var collision = CollisionShape2D.new()
-	var shape = CircleShape2D.new()
-	shape.radius = 20.0
-	collision.shape = shape
-	add_child(collision)
-	
-	body_entered.connect(_on_body_entered)
-	
 	var tween = create_tween().set_loops()
 	tween.tween_property(self, "alpha", 0.3, 0.5)
 	tween.tween_property(self, "alpha", 1.0, 0.5)
 
 func _process(_delta):
 	queue_redraw()
+	
+	var targets = get_tree().get_nodes_in_group("enemy")
+	targets.append_array(get_tree().get_nodes_in_group("rival"))
+	targets.append_array(get_tree().get_nodes_in_group("boss"))
+	
+	for e in targets:
+		if is_instance_valid(e) and not e.get("is_dead"):
+			if global_position.distance_to(e.global_position) <= 30.0:
+				explode()
+				break
 
 func _draw():
 	draw_circle(Vector2.ZERO, 12.0, Color(1.0, 0.2, 0.0, alpha))
 	draw_circle(Vector2.ZERO, 8.0, Color(1.0, 0.8, 0.0, alpha))
-	
-func _on_body_entered(body):
-	if body.is_in_group("enemy") or body.is_in_group("rival") or body.is_in_group("boss"):
-		explode()
 
 func explode():
 	var enemies = get_tree().get_nodes_in_group("enemy")

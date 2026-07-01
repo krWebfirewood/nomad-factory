@@ -60,6 +60,8 @@ func initialize_towers(wave: int):
 		tower.position = Vector2(pos.x * 64, pos.y * 64)
 		tower.set_meta("is_rival", true)
 		tower.add_to_group("rival_tower")
+		if "target_groups" in tower:
+			tower.target_groups = ["player", "enemy"]
 		# 적으로 인식되게 그룹 변경
 		tower.remove_from_group("player_building")
 		add_child(tower)
