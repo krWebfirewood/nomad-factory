@@ -1392,7 +1392,12 @@ func show_upgrade_selection():
 		all_options.append({"id": "skill_orbital", "title": "[스킬] 궤도 폭격", "desc": "단축키 F를 눌러 마우스 커서 위치에 강력한 폭격을 가합니다. (쿨타임 15초)"})
 	
 	all_options.shuffle()
-	var selected = all_options.slice(0, 3)
+	var selected = []
+	if max_floor < 5:
+		selected.append({"id": "add_floor", "title": "[증축] 층(Floor) 추가", "desc": "요새에 새로운 층을 추가하여 건설 공간을 넓힙니다."})
+		selected.append_array(all_options.slice(0, 2))
+	else:
+		selected = all_options.slice(0, 3)
 	
 	for opt in selected:
 		var card = Button.new()
@@ -1426,6 +1431,8 @@ func _apply_upgrade(id: String):
 	if id == "hp":
 		max_hp += 300
 		hp += 300
+	elif id == "add_floor":
+		add_floor()
 	elif id == "range":
 		GameManager.stat_range_mult *= 1.2
 	elif id == "damage":
@@ -1454,8 +1461,8 @@ func _apply_upgrade(id: String):
 	get_tree().paused = false
 	update_ui()
 	
-	# 새로운 층으로 자동 이동
-	change_floor(max_floor)
+	if id == "add_floor":
+		change_floor(max_floor)
 
 func change_floor(target_floor):
 	if target_floor < 1 or target_floor > max_floor:
