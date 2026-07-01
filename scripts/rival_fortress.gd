@@ -48,21 +48,22 @@ func initialize_towers(wave: int):
 			elif roll < 0.6: tower_type = "shotgun_turret"
 			elif roll < 0.8: tower_type = "sniper_turret"
 			
-		var tower_scene = null
-		if tower_type == "turret": tower_scene = preload("res://scenes/turret.tscn")
-		elif tower_type == "laser_turret": tower_scene = preload("res://scenes/laser_turret.tscn")
-		elif tower_type == "shotgun_turret": tower_scene = preload("res://scenes/shotgun_turret.tscn")
-		elif tower_type == "sniper_turret": tower_scene = preload("res://scenes/sniper_turret.tscn")
+		var tower = preload("res://scenes/turret.tscn").instantiate()
 		
-		if tower_scene:
-			var tower = tower_scene.instantiate()
-			tower.position = Vector2(pos.x * 64, pos.y * 64)
-			tower.set_meta("is_rival", true)
-			tower.add_to_group("rival_tower")
-			# 적으로 인식되게 그룹 변경
-			tower.remove_from_group("player_building")
-			add_child(tower)
-			floor_grid[pos] = tower
+		if tower_type == "laser_turret":
+			tower.set_script(preload("res://scripts/laser_turret.gd"))
+		elif tower_type == "shotgun_turret":
+			tower.set_script(preload("res://scripts/shotgun_turret.gd"))
+		elif tower_type == "sniper_turret":
+			tower.set_script(preload("res://scripts/sniper_turret.gd"))
+			
+		tower.position = Vector2(pos.x * 64, pos.y * 64)
+		tower.set_meta("is_rival", true)
+		tower.add_to_group("rival_tower")
+		# 적으로 인식되게 그룹 변경
+		tower.remove_from_group("player_building")
+		add_child(tower)
+		floor_grid[pos] = tower
 
 func _draw():
 	var rect = Rect2(-96, -96, 192, 192)
