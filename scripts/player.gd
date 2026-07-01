@@ -1543,6 +1543,7 @@ func cast_orbital_strike(target_pos: Vector2):
 	tween.tween_callback(effect.queue_free)
 	
 	# 범위 내 적 데미지
+	var enemies = get_tree().get_nodes_in_group("enemy")
 	for enemy in enemies:
 		if is_instance_valid(enemy):
 			var dist = enemy.global_position.distance_to(target_pos)
