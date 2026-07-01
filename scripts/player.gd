@@ -1129,6 +1129,12 @@ func handle_building():
 				moving_building.grid_pos = grid_pos
 				if "floor_index" in moving_building: moving_building.floor_index = current_floor
 				moving_building.position = local_pos
+				
+				if "out_dir" in moving_building: moving_building.out_dir = build_direction
+				if "direction" in moving_building: moving_building.direction = build_direction
+				if is_instance_valid(preview_arrow):
+					moving_building.rotation = preview_arrow.rotation
+					
 				floor_grids[current_floor][grid_pos] = moving_building
 				
 				moving_building = null
@@ -1570,9 +1576,17 @@ func _on_btn_move():
 		floor_grids[current_floor].erase(moving_grid_pos)
 		
 	# 이동 상태 설정
-	build_type = -1 # 이동 모드
+	set_build_type(-1) # 이동 모드
 	last_action_time = Time.get_ticks_msec()
-	if is_instance_valid(build_preview): build_preview.visible = true
+	
+	if is_instance_valid(preview_arrow):
+		preview_arrow.rotation = moving_building.rotation
+		
+	if is_equal_approx(moving_building.rotation, 0): build_direction = Vector2i.RIGHT
+	elif is_equal_approx(moving_building.rotation, PI/2): build_direction = Vector2i.DOWN
+	elif is_equal_approx(abs(moving_building.rotation), PI): build_direction = Vector2i.LEFT
+	elif is_equal_approx(moving_building.rotation, -PI/2): build_direction = Vector2i.UP
+	
 	# 이동할 건물을 안보이게 처리하거나 투명하게 할 수 있지만, 여기서는 그대로 둡니다.
 
 func _on_btn_demolish():
