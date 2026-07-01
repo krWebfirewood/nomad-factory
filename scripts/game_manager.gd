@@ -160,6 +160,9 @@ func spawn_rival():
 	if is_instance_valid(player):
 		rival.global_position = player.global_position + Vector2(cos(angle), sin(angle)) * distance
 		
+	if rival.has_method("initialize_towers"):
+		rival.initialize_towers(current_wave)
+		
 	get_tree().current_scene.add_child(rival)
 	print("중립 이동 요새(Rival)가 스폰되었습니다!")
 

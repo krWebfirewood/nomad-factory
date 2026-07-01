@@ -54,7 +54,7 @@ func _physics_process(_delta):
 		rotation = velocity.angle()
 		move_and_slide()
 		
-		if global_position.distance_to(home_station.global_position) < 30:
+		if global_position.distance_to(home_station.global_position) < 50:
 			deliver_resource()
 
 func find_nearest_resource():

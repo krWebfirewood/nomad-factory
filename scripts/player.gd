@@ -49,7 +49,7 @@ var hotbar_buttons = {}
 var position_history = []
 var max_history = 200
 
-var unlocked_towers = [1, 2, 3, 5, 6, 7, 8, 9, 10] # 4(레이저), 11(미사일) 잠김
+var unlocked_towers = [1, 2, 3, 5, 6, 7, 8, 9, 10, 12] # 4(레이저), 11(미사일) 잠김
 
 var active_relics = {
 	"vampire": false,
@@ -156,7 +156,7 @@ func use_dash():
 
 func use_orbital_strike():
 	if active_relics.get("orbital_strike", false) and orbital_cooldown <= 0:
-		cast_orbital_strike()
+		set_build_type(-2)
 
 func _on_mobile_action_pressed():
 	var current_time = Time.get_ticks_msec()
@@ -264,6 +264,12 @@ func _draw():
 				elif is_external and is_inside:
 					var tile_rect = Rect2(i * 64 - 32, j * 64 - 32, 64, 64)
 					draw_rect(tile_rect, Color(1.0, 0.0, 0.0, 0.1)) # 외부 전용인데 내부일 때 불가 표시
+					
+	if build_type == -2:
+		var mouse_pos = get_global_mouse_position()
+		var local_mouse = to_local(mouse_pos)
+		draw_circle(local_mouse, 300.0, Color(1, 0.2, 0.2, 0.2))
+		draw_circle(local_mouse, 300.0, Color(1, 0, 0, 0.8), false, 2.0)
 
 func _setup_ui():
 	ui_canvas = CanvasLayer.new()
@@ -856,6 +862,9 @@ func _input(event):
 		touch_index = 0
 
 	if is_touch_press:
+		if is_instance_valid(building_context_panel) and building_context_panel.visible and building_context_panel.get_global_rect().has_point(pos):
+			return
+			
 		if joystick_touch_id == -1 and pos.distance_to(joystick_center) < 120:
 			joystick_touch_id = touch_index
 			joystick_active = true
@@ -933,10 +942,7 @@ func _unhandled_input(event):
 		
 		# 궤도 폭격 스킬
 		elif event.keycode == KEY_F and active_relics.get("orbital_strike"):
-			if orbital_cooldown <= 0:
-				cast_orbital_strike()
-			else:
-				print("궤도 폭격 쿨타임 중: ", snapped(orbital_cooldown, 0.1), "초")
+			use_orbital_strike()
 				
 		elif event.keycode == KEY_ESCAPE: select_build_type(0, "현재 선택: 없음")
 		elif event.keycode == KEY_5: select_build_type(5, "5:방벽")
@@ -1037,14 +1043,32 @@ func set_build_type(type):
 			hotbar_slots[i].border_color = Color(1, 1, 1, 0) # 투명
 
 func get_hovered_fortress():
-	var mouse_pos = get_global_mouse_position()
-	# 메인 요새 반경 확장 (기존 160 -> 250, 외부 부착물 3칸 포함)
-	if mouse_pos.distance_to(global_position) <= 250:
+	var mouse_world_pos = get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
+	var local_pos = to_local(mouse_world_pos)
+	if abs(local_pos.x) < 224 and abs(local_pos.y) < 224:
 		return self
+		
+	var neutrals = get_tree().get_nodes_in_group("rival")
+	for n in neutrals:
+		if is_instance_valid(n):
+			var n_local = n.to_local(mouse_world_pos)
+			if abs(n_local.x) < 224 and abs(n_local.y) < 224:
+				return n
 	return null
 
 func handle_building():
 	if build_type == 0: return
+	
+	if build_type == -2:
+		if is_instance_valid(build_preview): build_preview.visible = false
+		var mouse_pos = get_global_mouse_position()
+		if build_pressed_this_frame:
+			build_pressed_this_frame = false
+			set_build_type(0)
+			cast_orbital_strike(mouse_pos)
+		queue_redraw()
+		return
+		
 	if not is_instance_valid(build_preview): return
 	
 	var target = get_hovered_fortress()
@@ -1501,25 +1525,8 @@ func _on_btn_upgrade():
 func _on_timer_timeout():
 	pass
 
-func cast_orbital_strike():
+func cast_orbital_strike(target_pos: Vector2):
 	orbital_cooldown = 15.0
-	
-	var target_pos = global_position
-	var enemies = get_tree().get_nodes_in_group("enemy")
-	var min_dist = 99999.0
-	var closest_enemy = null
-	
-	for enemy in enemies:
-		if is_instance_valid(enemy):
-			var dist = enemy.global_position.distance_to(global_position)
-			if dist < min_dist:
-				min_dist = dist
-				closest_enemy = enemy
-				
-	if closest_enemy != null:
-		target_pos = closest_enemy.global_position
-	else:
-		target_pos = global_position + Vector2(randf_range(-200, 200), randf_range(-200, 200))
 	
 	add_camera_shake(50.0)
 	print("궤도 폭격 발사!")

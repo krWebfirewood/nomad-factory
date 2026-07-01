@@ -21,6 +21,49 @@ func _ready():
 	add_to_group("rival")
 	pick_random_target()
 
+func initialize_towers(wave: int):
+	# 웨이브에 따라 타워 생성
+	var num_towers = 0
+	if wave >= 3 and wave < 5: num_towers = randi_range(1, 2)
+	elif wave >= 5 and wave < 8: num_towers = randi_range(2, 4)
+	elif wave >= 8: num_towers = randi_range(4, 6)
+	
+	if num_towers == 0: return
+	
+	var possible_pos = []
+	for i in range(-max_grid, max_grid + 1):
+		for j in range(-max_grid, max_grid + 1):
+			if i == 0 and j == 0: continue
+			possible_pos.append(Vector2i(i, j))
+			
+	possible_pos.shuffle()
+	
+	for i in range(min(num_towers, possible_pos.size())):
+		var pos = possible_pos[i]
+		var tower_type = "turret"
+		
+		if wave >= 5:
+			var roll = randf()
+			if roll < 0.3: tower_type = "laser_turret"
+			elif roll < 0.6: tower_type = "shotgun_turret"
+			elif roll < 0.8: tower_type = "sniper_turret"
+			
+		var tower_scene = null
+		if tower_type == "turret": tower_scene = preload("res://scenes/turret.tscn")
+		elif tower_type == "laser_turret": tower_scene = preload("res://scenes/laser_turret.tscn")
+		elif tower_type == "shotgun_turret": tower_scene = preload("res://scenes/shotgun_turret.tscn")
+		elif tower_type == "sniper_turret": tower_scene = preload("res://scenes/sniper_turret.tscn")
+		
+		if tower_scene:
+			var tower = tower_scene.instantiate()
+			tower.position = Vector2(pos.x * 64, pos.y * 64)
+			tower.set_meta("is_rival", true)
+			tower.add_to_group("rival_tower")
+			# 적으로 인식되게 그룹 변경
+			tower.remove_from_group("player_building")
+			add_child(tower)
+			floor_grid[pos] = tower
+
 func _draw():
 	var rect = Rect2(-96, -96, 192, 192)
 	draw_rect(rect, Color(0.3, 0.1, 0.1, 0.9)) # 어두운 붉은색
