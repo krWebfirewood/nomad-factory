@@ -253,6 +253,13 @@ func die():
 		else:
 			item.set("item_type", "wood" if randf() < 0.5 else "stone")
 		get_tree().current_scene.add_child(item)
+		
+	# 모듈 드랍
+	var module_drop = dropped_scene.instantiate()
+	module_drop.global_position = global_position
+	var mod_types = ["mod_explosive", "mod_multishot", "mod_frost"]
+	module_drop.set("item_type", mod_types[randi() % mod_types.size()])
+	get_tree().current_scene.add_child(module_drop)
 	
 	if is_instance_valid(GameManager.player):
 		if GameManager.player.has_method("show_upgrade_selection"):

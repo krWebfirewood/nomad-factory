@@ -76,6 +76,14 @@ func die():
 		drop.set("item_type", "iron")
 		get_tree().current_scene.add_child.call_deferred(drop)
 		
+	# 확률적 모듈 드랍
+	if randf() < 0.15:
+		var module_drop = drop_scene.instantiate()
+		module_drop.global_position = global_position
+		var mod_types = ["mod_explosive", "mod_multishot", "mod_frost"]
+		module_drop.set("item_type", mod_types[randi() % mod_types.size()])
+		get_tree().current_scene.add_child.call_deferred(module_drop)
+		
 	var effect = CPUParticles2D.new()
 	effect.emitting = true
 	effect.one_shot = true

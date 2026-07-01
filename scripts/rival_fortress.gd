@@ -236,6 +236,13 @@ func die():
 		GameManager.player.add_item("wood", wood_drop)
 		GameManager.player.add_item("stone", stone_drop)
 		if core_drop > 0: GameManager.player.add_item("monster_core", core_drop)
+		
+		# 확률적 모듈 지급
+		if randf() < 0.15:
+			var mod_types = ["mod_explosive", "mod_multishot", "mod_frost"]
+			var random_mod = mod_types[randi() % mod_types.size()]
+			GameManager.player.add_item(random_mod, 1)
+			print("라이벌 요새 파괴 보상으로 모듈 획득: ", random_mod)
 		# 알림 표시 등 추가 가능
 		print("라이벌 요새 파괴! 보상 지급됨: 나무 ", wood_drop, ", 돌 ", stone_drop, ", 코어 ", core_drop)
 	

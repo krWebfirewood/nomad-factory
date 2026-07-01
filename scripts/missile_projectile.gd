@@ -6,6 +6,7 @@ var damage = 25.0
 var attack_type = "explosive"
 var explosion_radius = 120.0
 var target_groups = ["enemy"]
+var module = ""
 
 func _ready():
 	collision_layer = 0
@@ -20,7 +21,15 @@ func _ready():
 	var rect = ColorRect.new()
 	rect.size = Vector2(20, 10)
 	rect.position = Vector2(-10, -5)
-	rect.color = Color(1.0, 0.4, 0.0) # 오렌지색 미사일
+	
+	if module == "mod_frost":
+		rect.color = Color(0.2, 0.8, 1.0)
+	elif module == "mod_explosive":
+		rect.color = Color(1.0, 0.2, 0.2)
+		explosion_radius *= 1.5
+	else:
+		rect.color = Color(1.0, 0.4, 0.0) # 오렌지색 미사일
+		
 	add_child(rect)
 	
 	body_entered.connect(_on_body_entered)
@@ -52,6 +61,8 @@ func explode():
 			if e.has_method("take_damage"):
 				var total_damage = (damage + GameManager.upg_turret_damage_level * 5.0) * GameManager.stat_damage_mult
 				e.take_damage(total_damage, attack_type)
+			if module == "mod_frost" and e.has_method("apply_slow"):
+				e.apply_slow(0.5, 3.0)
 				
 	# 폭발 이펙트 (파티클 + 애니메이션)
 	var effect_node = Node2D.new()

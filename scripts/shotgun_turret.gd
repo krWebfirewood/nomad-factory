@@ -60,10 +60,11 @@ func get_target_enemy():
 
 func shoot() -> bool:
 	if is_instance_valid(target_enemy):
-		# 산탄 3~5발 발사
+		var cur_mod = get_meta("equipped_module") if has_meta("equipped_module") else ""
+		var mult = 3 if cur_mod == "mod_multishot" else 1
+		var num_pellets = 5 * mult
 		var base_dir = global_position.direction_to(target_enemy.global_position)
-		var num_pellets = 5
-		var spread_angle = 45.0 * (PI / 180.0) # 45도 분산
+		var spread_angle = 45.0 * mult * (PI / 180.0)
 		
 		for i in range(num_pellets):
 			var proj = projectile_scene.instantiate()
@@ -78,5 +79,6 @@ func shoot() -> bool:
 			if "attack_type" in proj: proj.attack_type = "scatter"
 			var level = get_meta("level") if has_meta("level") else 1
 			if "damage" in proj: proj.damage = 2.0 + (level - 1) * 1.0
+			if "module" in proj: proj.module = cur_mod
 		return true
 	return false

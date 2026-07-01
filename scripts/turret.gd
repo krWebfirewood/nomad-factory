@@ -45,14 +45,27 @@ func get_target_enemy():
 
 func shoot() -> bool:
 	if is_instance_valid(target_enemy):
-		var proj = projectile_scene.instantiate()
-		proj.global_position = global_position
-		proj.direction = global_position.direction_to(target_enemy.global_position)
-		proj.visible = is_visible_in_tree()
-		if "target_groups" in proj: proj.target_groups = target_groups
-		if "attack_type" in proj: proj.attack_type = "kinetic"
-		var level = get_meta("level") if has_meta("level") else 1
-		if "damage" in proj: proj.damage += (level - 1) * 0.5
-		get_tree().current_scene.add_child(proj)
+		var cur_mod = get_meta("equipped_module") if has_meta("equipped_module") else ""
+		var num_shots = 3 if cur_mod == "mod_multishot" else 1
+		var base_dir = global_position.direction_to(target_enemy.global_position)
+		
+		for i in range(num_shots):
+			var proj = projectile_scene.instantiate()
+			proj.global_position = global_position
+			
+			if num_shots == 3:
+				var angle_offset = (i - 1) * 0.3 # -0.3, 0, 0.3
+				proj.direction = base_dir.rotated(angle_offset)
+			else:
+				proj.direction = base_dir
+				
+			proj.visible = is_visible_in_tree()
+			if "target_groups" in proj: proj.target_groups = target_groups
+			if "attack_type" in proj: proj.attack_type = "kinetic"
+			var level = get_meta("level") if has_meta("level") else 1
+			if "damage" in proj: proj.damage += (level - 1) * 0.5
+			if "module" in proj: proj.module = cur_mod
+			
+			get_tree().current_scene.add_child(proj)
 		return true
 	return false

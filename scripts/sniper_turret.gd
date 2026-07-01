@@ -61,17 +61,27 @@ func get_target_enemy():
 
 func shoot() -> bool:
 	if is_instance_valid(target_enemy):
-		var proj = projectile_scene.instantiate()
-		proj.global_position = global_position
-		proj.direction = global_position.direction_to(target_enemy.global_position)
-		proj.visible = is_visible_in_tree()
-		if "target_groups" in proj: proj.target_groups = target_groups
+		var cur_mod = get_meta("equipped_module") if has_meta("equipped_module") else ""
+		var num_shots = 3 if cur_mod == "mod_multishot" else 1
+		var base_dir = global_position.direction_to(target_enemy.global_position)
 		
-		# 스나이퍼 프로젝타일 스탯 (추후 projectile.gd에서 지원하게 수정 필요, 임시로 속도/데미지 올리기)
-		if "speed" in proj: proj.speed = 800.0
-		if "attack_type" in proj: proj.attack_type = "piercing"
-		var level = get_meta("level") if has_meta("level") else 1
-		if "damage" in proj: proj.damage = 10.0 + (level - 1) * 3.0
-		get_tree().current_scene.add_child(proj)
+		for i in range(num_shots):
+			var proj = projectile_scene.instantiate()
+			proj.global_position = global_position
+			if num_shots == 3:
+				var angle_offset = (i - 1) * 0.15 # 좁은 산탄 (-0.15, 0, 0.15)
+				proj.direction = base_dir.rotated(angle_offset)
+			else:
+				proj.direction = base_dir
+			
+			proj.visible = is_visible_in_tree()
+			if "target_groups" in proj: proj.target_groups = target_groups
+			if "speed" in proj: proj.speed = 800.0
+			if "attack_type" in proj: proj.attack_type = "piercing"
+			var level = get_meta("level") if has_meta("level") else 1
+			if "damage" in proj: proj.damage = 10.0 + (level - 1) * 3.0
+			if "module" in proj: proj.module = cur_mod
+			
+			get_tree().current_scene.add_child(proj)
 		return true
 	return false

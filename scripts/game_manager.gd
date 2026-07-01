@@ -33,6 +33,13 @@ var stat_range_mult = 1.0       # 사거리
 var stat_drill_mult = 1.0       # 채굴 속도 (작을수록 빠름, 혹은 반대로 처리)
 var stat_firerate_mult = 1.0    # 공격 속도 배율
 
+func clear_emp(b: Node2D):
+	if is_instance_valid(b):
+		if b.has_meta("emp_disabled"):
+			b.remove_meta("emp_disabled")
+			b.process_mode = Node.PROCESS_MODE_INHERIT
+			b.modulate = Color(1, 1, 1)
+
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	load_meta_data()
@@ -109,7 +116,8 @@ func spawn_boss():
 	var boss_types = [
 		preload("res://scripts/boss.gd"),
 		preload("res://scripts/boss_incinerator.gd"),
-		preload("res://scripts/boss_broodmother.gd")
+		preload("res://scripts/boss_broodmother.gd"),
+		preload("res://scripts/boss_devastator.gd")
 	]
 	
 	var boss_script = boss_types[randi() % boss_types.size()]
@@ -140,9 +148,10 @@ func _spawn_enemy():
 			var rand_val = randf()
 			
 			if current_wave >= 2:
-				if rand_val < 0.1: type = 2
-				elif rand_val < 0.6: type = 1
-				elif rand_val < 0.8: type = 3
+				if rand_val < 0.1: type = 2 # 10%
+				elif rand_val < 0.5: type = 1 # 40%
+				elif rand_val < 0.7: type = 3 # 20%
+				elif rand_val < 0.85: type = 4 # 15%
 			
 			enemy.setup(current_wave, type)
 			

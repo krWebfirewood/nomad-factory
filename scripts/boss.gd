@@ -239,6 +239,13 @@ func die():
 		else:
 			item.set("item_type", "wood" if randf() < 0.5 else "stone")
 		get_tree().current_scene.add_child(item)
+		
+	# 모듈 드랍
+	var module_drop = dropped_scene.instantiate()
+	module_drop.global_position = global_position
+	var mod_types = ["mod_explosive", "mod_multishot", "mod_frost"]
+	module_drop.set("item_type", mod_types[randi() % mod_types.size()])
+	get_tree().current_scene.add_child(module_drop)
 	
 	# 요새 증축 로직 대신 업그레이드 선택 UI 호출
 	if is_instance_valid(GameManager.player):

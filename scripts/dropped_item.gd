@@ -25,6 +25,15 @@ func _ready():
 		if item_type == "wood": spr.modulate = Color(0.6, 0.4, 0.2, 1)
 		elif item_type == "stone": spr.modulate = Color(0.6, 0.6, 0.6, 1)
 		elif item_type == "steel_plate": spr.modulate = Color(0.8, 0.8, 0.9, 1)
+		elif item_type == "mod_explosive":
+			spr.modulate = Color(1.0, 0.2, 0.2, 1)
+			spr.scale = Vector2(1.5, 1.5)
+		elif item_type == "mod_multishot":
+			spr.modulate = Color(1.0, 0.8, 0.2, 1)
+			spr.scale = Vector2(1.5, 1.5)
+		elif item_type == "mod_frost":
+			spr.modulate = Color(0.2, 0.8, 1.0, 1)
+			spr.scale = Vector2(1.5, 1.5)
 		else: spr.modulate = Color(0.8, 0.2, 1, 1) # monster_core
 
 func _physics_process(delta):

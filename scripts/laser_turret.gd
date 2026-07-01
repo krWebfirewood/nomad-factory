@@ -39,6 +39,7 @@ func _ready():
 	laser_beam.visible = false
 
 func _process(delta):
+	if not is_instance_valid(laser_beam): return
 	target_enemy = get_target_enemy()
 	
 	if is_instance_valid(target_enemy):

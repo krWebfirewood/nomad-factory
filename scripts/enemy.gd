@@ -37,6 +37,14 @@ func setup(wave: int, type: int = 0):
 			sprite_node.modulate = Color(0.0, 1.0, 0.0)
 			sprite_node.scale = Vector2(0.5, 0.5)
 			
+	elif enemy_type == 4: # EMP 드론 (사망 시 EMP)
+		armor_type = "medium"
+		max_hp = 3 + int(wave / 2.0)
+		speed = 80.0 + (wave * 3.0)
+		if sprite_node:
+			sprite_node.modulate = Color(0.2, 0.8, 1.0)
+			sprite_node.scale = Vector2(0.6, 0.6)
+			
 	else: # 일반
 		armor_type = "medium"
 		max_hp = 1 + int(wave / 2.0)
@@ -79,6 +87,8 @@ func _physics_process(delta):
 					if enemy_type == 2: dmg *= 3 # 탱커 충돌 피해량 3배
 					collider.take_damage(dmg)
 				exploded = true
+				if enemy_type == 4:
+					trigger_emp(global_position, 150.0, 3.0)
 				queue_free()
 				break
 			elif collider.has_method("gather"):
@@ -157,4 +167,37 @@ func take_damage(amount, attack_type = "normal"):
 			extra_drop.set("item_type", "wood" if randf() < 0.5 else "stone")
 			get_tree().current_scene.add_child.call_deferred(extra_drop)
 			
+		if enemy_type == 4:
+			trigger_emp(global_position, 150.0, 3.0)
+			
 		queue_free()
+
+func trigger_emp(pos: Vector2, radius: float, duration: float):
+	var effect = CPUParticles2D.new()
+	effect.emitting = true
+	effect.one_shot = true
+	effect.explosiveness = 1.0
+	effect.amount = 50
+	effect.lifetime = 0.5
+	effect.spread = 180.0
+	effect.initial_velocity_min = 100.0
+	effect.initial_velocity_max = 200.0
+	effect.color = Color(0.2, 0.8, 1.0)
+	effect.global_position = pos
+	get_tree().current_scene.add_child(effect)
+	get_tree().create_timer(1.0).timeout.connect(func(): if is_instance_valid(effect): effect.queue_free())
+	
+	var player = GameManager.player
+	if is_instance_valid(player):
+		for f in player.floor_grids.keys():
+			for grid_pos in player.floor_grids[f].keys():
+				var b = player.floor_grids[f][grid_pos]
+				if is_instance_valid(b) and b.global_position.distance_to(pos) <= radius:
+					if not b.has_meta("emp_disabled"):
+						b.set_meta("emp_disabled", true)
+						if "laser_beam" in b and is_instance_valid(b.laser_beam):
+							b.laser_beam.visible = false
+						b.process_mode = Node.PROCESS_MODE_DISABLED
+						b.modulate = Color(0.3, 0.4, 0.8)
+						var timer = get_tree().create_timer(duration)
+						timer.timeout.connect(GameManager.clear_emp.bind(b))

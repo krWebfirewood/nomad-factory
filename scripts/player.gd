@@ -92,6 +92,10 @@ var btn_upgrade = null
 var btn_move = null
 var btn_demolish = null
 var filter_option = null
+var btn_equip_explosive = null
+var btn_equip_multishot = null
+var btn_equip_frost = null
+var module_status_label = null
 var selected_building = null
 var moving_building = null
 var moving_grid_pos = Vector2i()
@@ -507,6 +511,29 @@ func _setup_ui():
 	filter_option.item_selected.connect(_on_filter_selected)
 	building_context_panel.add_child(filter_option)
 	
+	module_status_label = Label.new()
+	module_status_label.position = Vector2(10, 190)
+	module_status_label.add_theme_color_override("font_color", Color(0.5, 1, 0.5))
+	building_context_panel.add_child(module_status_label)
+	
+	btn_equip_explosive = Button.new()
+	btn_equip_explosive.position = Vector2(10, 220)
+	btn_equip_explosive.size = Vector2(180, 30)
+	btn_equip_explosive.pressed.connect(func(): _on_btn_equip_module("mod_explosive"))
+	building_context_panel.add_child(btn_equip_explosive)
+	
+	btn_equip_multishot = Button.new()
+	btn_equip_multishot.position = Vector2(10, 260)
+	btn_equip_multishot.size = Vector2(180, 30)
+	btn_equip_multishot.pressed.connect(func(): _on_btn_equip_module("mod_multishot"))
+	building_context_panel.add_child(btn_equip_multishot)
+	
+	btn_equip_frost = Button.new()
+	btn_equip_frost.position = Vector2(10, 300)
+	btn_equip_frost.size = Vector2(180, 30)
+	btn_equip_frost.pressed.connect(func(): _on_btn_equip_module("mod_frost"))
+	building_context_panel.add_child(btn_equip_frost)
+	
 	var upg_title = Label.new()
 	upg_title.text = "=== TECH TREE (단축키 U) ==="
 	upg_title.position = Vector2(0, 20)
@@ -615,7 +642,12 @@ func update_ui():
 		var core_count = inventory.get("monster_core", 0)
 		var iron_count = inventory.get("iron", 0)
 		var steel_count = inventory.get("steel_plate", 0)
-		new_inventory_label.text = "나무: " + str(wood_count) + "\n돌: " + str(stone_count) + "\n철광석(Iron): " + str(iron_count) + "\n강철 판재(Steel): " + str(steel_count) + "\n석재 벽돌: " + str(brick_count) + "\n몬스터 코어: " + str(core_count)
+		var mod_exp = inventory.get("mod_explosive", 0)
+		var mod_mul = inventory.get("mod_multishot", 0)
+		var mod_fro = inventory.get("mod_frost", 0)
+		var mod_str = "\n[모듈] 폭발:" + str(mod_exp) + " 멀티:" + str(mod_mul) + " 빙결:" + str(mod_fro)
+			
+		new_inventory_label.text = "나무: " + str(wood_count) + "\n돌: " + str(stone_count) + "\n철광석(Iron): " + str(iron_count) + "\n강철 판재(Steel): " + str(steel_count) + "\n석재 벽돌: " + str(brick_count) + "\n몬스터 코어: " + str(core_count) + mod_str
 		
 	if is_instance_valid(status_label):
 		var s = "이동 요새 HP: " + str(ceil(max(0, hp))) + " / " + str(ceil(max_hp)) + "\n"
@@ -1512,6 +1544,32 @@ func open_context_ui(building, refresh = false):
 	else:
 		filter_option.visible = false
 		building_context_panel.size.y = 190
+		
+	var is_attack_tower = building.get_meta("build_type_id", 0) in [1, 2, 3, 4, 11]
+	
+	btn_equip_explosive.visible = false
+	btn_equip_multishot.visible = false
+	btn_equip_frost.visible = false
+	module_status_label.visible = false
+	
+	if is_attack_tower:
+		building_context_panel.size.y = 350
+		module_status_label.visible = true
+		var cur_mod = building.get_meta("equipped_module") if building.has_meta("equipped_module") else ""
+		if cur_mod == "mod_explosive": module_status_label.text = "[폭발 모듈 장착중]"
+		elif cur_mod == "mod_multishot": module_status_label.text = "[멀티샷 장착중]"
+		elif cur_mod == "mod_frost": module_status_label.text = "[빙결 모듈 장착중]"
+		else: module_status_label.text = "[모듈 없음]"
+		
+		if inventory.get("mod_explosive", 0) > 0:
+			btn_equip_explosive.visible = true
+			btn_equip_explosive.text = "폭발 모듈 장착 (" + str(inventory.get("mod_explosive", 0)) + ")"
+		if inventory.get("mod_multishot", 0) > 0:
+			btn_equip_multishot.visible = true
+			btn_equip_multishot.text = "멀티샷 장착 (" + str(inventory.get("mod_multishot", 0)) + ")"
+		if inventory.get("mod_frost", 0) > 0:
+			btn_equip_frost.visible = true
+			btn_equip_frost.text = "빙결 장착 (" + str(inventory.get("mod_frost", 0)) + ")"
 
 func _on_btn_upgrade():
 	if not is_instance_valid(selected_building): return
@@ -1609,6 +1667,11 @@ func _on_btn_demolish():
 	var b_pos = selected_building.grid_pos
 	if floor_grids[current_floor].has(b_pos):
 		floor_grids[current_floor].erase(b_pos)
+		
+	var cur_mod = selected_building.get_meta("equipped_module") if selected_building.has_meta("equipped_module") else ""
+	if cur_mod != "":
+		add_item(cur_mod, 1) # 모듈 100% 환불
+		
 	selected_building.queue_free()
 	selected_building = null
 	building_context_panel.visible = false
@@ -1617,6 +1680,47 @@ func _on_btn_demolish():
 	
 	# 자원 50% 환불 (임시로 코어 2개)
 	add_item("monster_core", 2)
+
+func _on_btn_equip_module(mod_type: String):
+	if not is_instance_valid(selected_building): return
+	if inventory.get(mod_type, 0) <= 0: return
+	
+	var cur_mod = selected_building.get_meta("equipped_module") if selected_building.has_meta("equipped_module") else ""
+	if cur_mod != "":
+		add_item(cur_mod, 1) # 기존 모듈 환불
+		
+	add_item(mod_type, -1)
+	selected_building.set_meta("equipped_module", mod_type)
+	update_module_indicator(selected_building)
+	open_context_ui(selected_building, true)
+
+func update_module_indicator(building: Node2D):
+	if not is_instance_valid(building): return
+	
+	var old_ind = building.get_node_or_null("ModuleIndicator")
+	if old_ind: old_ind.queue_free()
+	
+	if building.has_meta("equipped_module"):
+		var mod = building.get_meta("equipped_module")
+		if mod == "": return
+		
+		var ind = ColorRect.new()
+		ind.name = "ModuleIndicator"
+		ind.size = Vector2(10, 10)
+		ind.position = Vector2(10, -20)
+		
+		if mod == "mod_explosive": ind.color = Color(1, 0.2, 0.2)
+		elif mod == "mod_multishot": ind.color = Color(1, 0.8, 0.2)
+		elif mod == "mod_frost": ind.color = Color(0.2, 0.8, 1)
+		
+		var border = ReferenceRect.new()
+		border.editor_only = false
+		border.border_color = Color(0,0,0)
+		border.border_width = 1.0
+		border.size = ind.size
+		ind.add_child(border)
+		
+		building.add_child(ind)
 
 func _on_filter_selected(index):
 	if is_instance_valid(selected_building) and selected_building.get_meta("b_name") == "공급기":
@@ -1648,6 +1752,8 @@ func get_save_data() -> Dictionary:
 				elif b.direction == Vector2i.LEFT: b_data["dir"] = -1
 				elif b.direction == Vector2i.DOWN: b_data["dir"] = 2
 				elif b.direction == Vector2i.UP: b_data["dir"] = -2
+			if b.has_meta("equipped_module"):
+				b_data["module"] = b.get_meta("equipped_module")
 			fg_data.append(b_data)
 		data["floor_grids"][str(f)] = fg_data
 		
@@ -1691,17 +1797,22 @@ func load_save_data(data: Dictionary):
 					
 				var building = instantiate_building(b_type)
 				if building:
-					building.grid_pos = pos
+					if "grid_pos" in building: building.grid_pos = pos
 					if "direction" in building: building.direction = build_direction
 					if "floor_index" in building: building.floor_index = f
 					
 					building.set_meta("level", b_level)
 					building.set_meta("build_type_id", b_type)
+					building.set_meta("grid_pos", pos)
 					var b_names = ["", "기관총", "스나이퍼", "샷건", "레이저", "방벽", "수리소", "드릴", "공급기", "벨트", "가공소", "미사일"]
 					if b_type > 0 and b_type < b_names.size():
 						building.set_meta("b_name", b_names[b_type])
 						
 					if "target_groups" in building: building.target_groups = ["enemy", "rival", "boss"]
+					
+					if "module" in b_data:
+						building.set_meta("equipped_module", b_data["module"])
+						update_module_indicator(building)
 					
 					building.position = Vector2(pos.x * 64, pos.y * 64)
 					if build_direction == Vector2i.RIGHT: building.rotation = 0

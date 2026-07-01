@@ -55,11 +55,21 @@ func get_target_enemy():
 func shoot():
 	if not is_instance_valid(target_enemy): return
 	
-	var script = preload("res://scripts/missile_projectile.gd")
-	var proj = script.new()
-	proj.global_position = global_position
-	proj.direction = global_position.direction_to(target_enemy.global_position)
-	proj.visible = is_visible_in_tree()
-	var level = get_meta("level") if has_meta("level") else 1
-	if "damage" in proj: proj.damage = 25.0 + (level - 1) * 10.0
-	get_tree().current_scene.add_child(proj)
+	var cur_mod = get_meta("equipped_module") if has_meta("equipped_module") else ""
+	var num_shots = 3 if cur_mod == "mod_multishot" else 1
+	var base_dir = global_position.direction_to(target_enemy.global_position)
+	
+	for i in range(num_shots):
+		var script = preload("res://scripts/missile_projectile.gd")
+		var proj = script.new()
+		proj.global_position = global_position
+		if num_shots == 3:
+			proj.direction = base_dir.rotated((i - 1) * 0.5)
+		else:
+			proj.direction = base_dir
+			
+		proj.visible = is_visible_in_tree()
+		var level = get_meta("level") if has_meta("level") else 1
+		if "damage" in proj: proj.damage = 25.0 + (level - 1) * 10.0
+		if "module" in proj: proj.module = cur_mod
+		get_tree().current_scene.add_child(proj)
