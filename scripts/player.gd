@@ -49,7 +49,7 @@ var hotbar_buttons = {}
 var position_history = []
 var max_history = 200
 
-var unlocked_towers = [1, 2, 3, 5, 6, 7, 8, 9, 10, 12] # 4(레이저), 11(미사일) 잠김
+var unlocked_towers = [1, 2, 3, 5, 6, 7, 8, 9, 10] # 4(레이저), 11(미사일), 12(지뢰) 잠김
 
 var active_relics = {
 	"vampire": false,
@@ -241,7 +241,7 @@ func _draw():
 		if build_type == -1 and is_instance_valid(moving_building):
 			check_type = moving_building.get_meta("build_type_id") if moving_building.has_meta("build_type_id") else 1
 			
-		var is_internal = (check_type >= 1 and check_type <= 4) or (check_type >= 8 and check_type <= 11)
+		var is_internal = (check_type >= 1 and check_type <= 4) or (check_type >= 8 and check_type <= 12)
 		var is_external = (check_type >= 5 and check_type <= 7)
 		var max_grid = 2
 		
@@ -1087,7 +1087,7 @@ func handle_building():
 	if build_type == -1 and is_instance_valid(moving_building):
 		check_type = moving_building.get_meta("build_type_id") if moving_building.has_meta("build_type_id") else 1
 		
-	var is_internal = (check_type >= 1 and check_type <= 4) or (check_type >= 8 and check_type <= 11)
+	var is_internal = (check_type >= 1 and check_type <= 4) or (check_type >= 8 and check_type <= 12)
 	var is_external = (check_type >= 5 and check_type <= 7)
 	
 	var is_inside = abs(grid_pos.x) <= max_grid and abs(grid_pos.y) <= max_grid
@@ -1380,6 +1380,8 @@ func show_upgrade_selection():
 		all_options.append({"id": "unlock_laser", "title": "[해금] 레이저 타워", "desc": "적을 관통하는 강력한 레이저 타워 건설법을 해금합니다."})
 	if not 11 in unlocked_towers:
 		all_options.append({"id": "unlock_missile", "title": "[해금] 미사일 타워", "desc": "폭발성 미사일을 발사하는 타워 건설법을 해금합니다."})
+	if not 12 in unlocked_towers:
+		all_options.append({"id": "unlock_mine", "title": "[해금] 지뢰 살포기", "desc": "적의 이동 경로에 지뢰를 설치하는 살포기 건설법을 해금합니다."})
 		
 	if not active_relics.get("vampire"):
 		all_options.append({"id": "relic_vampire", "title": "[유물] 흡혈 코어", "desc": "모든 타워가 적을 공격할 때마다 5% 확률로 요새 체력을 1 회복합니다."})
@@ -1434,6 +1436,9 @@ func _apply_upgrade(id: String):
 		update_hotbar_ui()
 	elif id == "unlock_missile":
 		unlocked_towers.append(11)
+		update_hotbar_ui()
+	elif id == "unlock_mine":
+		unlocked_towers.append(12)
 		update_hotbar_ui()
 	elif id == "relic_vampire":
 		active_relics["vampire"] = true
@@ -1717,4 +1722,5 @@ func instantiate_building(b_type: int) -> Node2D:
 	elif b_type == 9: building = preload("res://scripts/belt.gd").new()
 	elif b_type == 10: building = preload("res://scripts/processor.gd").new()
 	elif b_type == 11: building = preload("res://scripts/missile_turret.gd").new()
+	elif b_type == 12: building = preload("res://scripts/mine_dispenser.gd").new()
 	return building
