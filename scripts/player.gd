@@ -899,23 +899,28 @@ func _update_joystick(pos: Vector2):
 	joystick_vector = dir * (dist / 80.0)
 
 func _unhandled_input(event):
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if Time.get_ticks_msec() - last_action_time < 200:
 			return
 			
-		build_pressed_this_frame = true
-		if build_type == 0 and moving_building == null:
-			var target = get_hovered_fortress()
-			if target != null:
-				var mouse_world_pos = get_canvas_transform().affine_inverse() * event.position
-				var target_local_pos = target.to_local(mouse_world_pos)
-				var grid_pos = FactoryManager.get_local_grid_pos(target_local_pos)
-				if floor_grids[current_floor].has(grid_pos):
-					open_context_ui(floor_grids[current_floor][grid_pos])
+		if event.pressed:
+			# 마우스/터치 눌렀을 때: 기존 건물 선택 (업그레이드 창 열기)
+			if build_type == 0 and moving_building == null:
+				var target = get_hovered_fortress()
+				if target != null:
+					var mouse_world_pos = get_canvas_transform().affine_inverse() * event.position
+					var target_local_pos = target.to_local(mouse_world_pos)
+					var grid_pos = FactoryManager.get_local_grid_pos(target_local_pos)
+					if floor_grids[current_floor].has(grid_pos):
+						open_context_ui(floor_grids[current_floor][grid_pos])
+					else:
+						if is_instance_valid(building_context_panel): building_context_panel.visible = false
 				else:
 					if is_instance_valid(building_context_panel): building_context_panel.visible = false
-			else:
-				if is_instance_valid(building_context_panel): building_context_panel.visible = false
+		else:
+			# 마우스/터치 뗐을 때: 건물 건설 확정
+			if build_type != 0 or moving_building != null:
+				build_pressed_this_frame = true
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 		if build_type != 0:
 			set_build_type(0)
@@ -1558,6 +1563,7 @@ func _on_btn_move():
 		
 	# 이동 상태 설정
 	build_type = -1 # 이동 모드
+	last_action_time = Time.get_ticks_msec()
 	if is_instance_valid(build_preview): build_preview.visible = true
 	# 이동할 건물을 안보이게 처리하거나 투명하게 할 수 있지만, 여기서는 그대로 둡니다.
 

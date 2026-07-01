@@ -38,9 +38,8 @@ func _physics_process(delta):
 		# 타겟을 향해 자석처럼 끌려감
 		if is_instance_valid(target):
 			var dir = (target.global_position - global_position).normalized()
-			velocity += dir * 2000.0 * delta # 가속도
-			if velocity.length() > max_speed:
-				velocity = velocity.normalized() * max_speed
+			# 자연스럽게 방향을 틀면서 최고 속도로 가속 (오빗 현상 방지)
+			velocity = velocity.lerp(dir * max_speed, 8.0 * delta)
 			position += velocity * delta
 			
 			if global_position.distance_to(target.global_position) < 40.0:
