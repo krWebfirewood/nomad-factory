@@ -712,8 +712,6 @@ func game_over():
 func _process(delta):
 	if is_dead: return
 	
-	queue_redraw()
-	
 	if get_tree().paused: return
 	
 	if orbital_cooldown > 0:
@@ -1041,6 +1039,8 @@ func set_build_type(type):
 			hotbar_slots[i].border_color = Color(1, 1, 0, 1) # 선택됨 (노란 테두리)
 		else:
 			hotbar_slots[i].border_color = Color(1, 1, 1, 0) # 투명
+			
+	queue_redraw()
 
 func get_hovered_fortress():
 	var mouse_world_pos = get_canvas_transform().affine_inverse() * get_viewport().get_mouse_position()
@@ -1260,6 +1260,7 @@ func handle_building():
 				
 				# 건설 후 건설 모드 종료 (미리보기 숨김)
 				set_build_type(0)
+				queue_redraw()
 				
 	# 철거 로직 (마우스 우클릭)
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
@@ -1470,6 +1471,8 @@ func change_floor(target_floor):
 			floor_nodes[f].visible = true
 		else:
 			floor_nodes[f].visible = false
+			
+	queue_redraw()
 	
 	print("현재 층: " + str(current_floor) + "F")
 
@@ -1602,6 +1605,8 @@ func _on_btn_demolish():
 	selected_building.queue_free()
 	selected_building = null
 	building_context_panel.visible = false
+	
+	queue_redraw()
 	
 	# 자원 50% 환불 (임시로 코어 2개)
 	add_item("monster_core", 2)
