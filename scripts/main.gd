@@ -115,7 +115,7 @@ func _load_chunk(chunk_pos: Vector2i):
 			if rand_val < tree_chance: _spawn_object(tree_scene, grid_pos)
 			elif rand_val < tree_chance + rock_chance: _spawn_object(rock_scene, grid_pos)
 			
-	if randf() < 0.1:
+	if GameManager.current_wave >= 3 and randf() < 0.1:
 		var nest_script = preload("res://scripts/poi_nest.gd")
 		var nest = nest_script.new()
 		nest.global_position = Vector2(start_x * 64 + (chunk_size * 32), start_y * 64 + (chunk_size * 32))
