@@ -1541,7 +1541,7 @@ func cast_orbital_strike():
 	var bosses = get_tree().get_nodes_in_group("boss")
 	for boss in bosses:
 		if is_instance_valid(boss):
-			var dist = boss.global_position.distance_to(mouse_world_pos)
+			var dist = boss.global_position.distance_to(target_pos)
 			if dist <= 350.0:
 				if boss.has_method("take_damage"):
 					boss.take_damage(800.0 * GameManager.stat_damage_mult, "explosive")
